@@ -2,5 +2,24 @@ const express = require('express');
 const router = express.Router();
 
 router.use('/films', require('./filmRoutes'));
-
+router.use('/countries',require('./countryRoutes'));
+router.use('/genres',require('./genreRoutes'));
+router.use('/actors',require('./actorRoutes'));
+router.use('/filminfo',require('./filmInfoRoutes'));
+router.use('/filmgenre',require('./filmGenreRoutes'));
+router.use('/seasons',require('./seasonRoutes'));
+router.use('/resolutions',require('./resolutionRoutes'));
+router.use('/filmsources',require('./filmSourceRoutes'));
+router.use('/episodes',require('./episodeRoutes'));
+router.use('/postertypes',require('./posterTypeRoutes'));
+router.use('/posters',require('./posterRoutes'));
+router.use('/accounts',require('./accountRoutes'));
+router.use('/auth',require('./authRoutes'));
+router.use('/profiles',require('./profileRoutes'));
+router.use('/favorites',require('./favoriteRoutes'));
+router.use('/watchlists',require('./watchListRoutes'));
+router.use('/watchlistitems',require('./watchListItemRoutes'));
+router.use('/ratings',require('./ratingRoutes'));
+router.use('/history',require('./historyRoutes'));
+router.use('/filmactors',require('./filmActorRoutes'));
 module.exports = router;
