@@ -5,6 +5,7 @@ const { requireLogin, requireRole } = require('../middlewares/authMiddleware');
 
 router.get('/',  accountController.getAccounts);
 router.get('/:id',  accountController.getAccountByID);
+router.post('/', accountController.createAccount);
 router.put('/:id', accountController.updateAccount);
 router.delete('/:id',  accountController.deleteAccount);
 

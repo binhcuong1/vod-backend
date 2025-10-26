@@ -5,11 +5,10 @@ const rating = {
 
   getAll: (callback) => {
     db.query(
-      `SELECT r.*, p.Profile_name, f.Film_name, e.Episode_number
+      `SELECT r.*, p.Profile_name, f.Film_name
        FROM ${table_name} r
        JOIN Profile p ON r.Profile_id = p.Profile_id
        JOIN Film f ON r.Film_id = f.Film_id
-       LEFT JOIN Episode e ON r.Episode_id = e.Episode_id
        ORDER BY r.Score DESC`,
       (err, result) => (err ? callback(err, null) : callback(null, result))
     );
@@ -18,10 +17,9 @@ const rating = {
 
   getByFilm: (film_id, callback) => {
     db.query(
-      `SELECT r.*, p.Profile_name, e.Episode_number
+      `SELECT r.*, p.Profile_name
        FROM ${table_name} r
        JOIN Profile p ON r.Profile_id = p.Profile_id
-       LEFT JOIN Episode e ON r.Episode_id = e.Episode_id
        WHERE r.Film_id = ?
        ORDER BY r.Score DESC`,
       [film_id],
@@ -32,10 +30,9 @@ const rating = {
 
   getByProfile: (profile_id, callback) => {
     db.query(
-      `SELECT r.*, f.Film_name, e.Episode_number
+      `SELECT r.*, f.Film_name
        FROM ${table_name} r
        JOIN Film f ON r.Film_id = f.Film_id
-       LEFT JOIN Episode e ON r.Episode_id = e.Episode_id
        WHERE r.Profile_id = ?
        ORDER BY r.Film_id DESC`,
       [profile_id],
@@ -46,10 +43,9 @@ const rating = {
   // 🔹 Thêm mới / cập nhật (nếu đã có)
   upsert: (data, callback) => {
     db.query(
-      `INSERT INTO ${table_name} (Profile_id, Film_id, Episode_id, Score, Review)
-       VALUES (?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE 
-         Episode_id = VALUES(Episode_id),
+      `INSERT INTO ${table_name} (Profile_id, Film_id, Score, Review)
+       VALUES (?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE    
          Score = VALUES(Score),
          Review = VALUES(Review)`,
       [data.profile_id, data.film_id, data.episode_id || null, data.score, data.review],
