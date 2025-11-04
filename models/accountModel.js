@@ -1,6 +1,6 @@
-const db = require('../config/db');
-const bcrypt = require('bcrypt');
-const table_name = 'Account';
+const db = require("../config/db");
+const bcrypt = require("bcrypt");
+const table_name = "Account";
 
 const account = {
   getAll: (callback) => {
@@ -38,30 +38,54 @@ const account = {
       const hashed = await bcrypt.hash(data.password, 10);
       db.query(
         `INSERT INTO ${table_name} (Email, Password, role) VALUES (?, ?, ?)`,
-        [data.email, hashed, data.role || 'user'],
+        [data.email, hashed, data.role || "user"],
         (err, result) => (err ? callback(err, null) : callback(null, result))
       );
     } catch (err) {
       callback(err, null);
     }
   },
+  createGoogle: async (email, callback) => {
+  try {
+    const hashed = await bcrypt.hash('', 10);
+    db.query(
+      `INSERT INTO ${table_name} (Email, Password, role) VALUES (?, ?, 'user')`,
+      [email, hashed],
+      (err, result) => (err ? callback(err, null) : callback(null, result))
+    );
+  } catch (err) {
+    callback(err, null);
+  }
+},
+
+  
 
   update: async (id, data, callback) => {
     const fields = [];
     const values = [];
 
-    if (data.email !== undefined) { fields.push('Email = ?'); values.push(data.email); }
+    if (data.email !== undefined) {
+      fields.push("Email = ?");
+      values.push(data.email);
+    }
     if (data.password !== undefined) {
       const hashed = await bcrypt.hash(data.password, 10);
-      fields.push('Password = ?'); values.push(hashed);
+      fields.push("Password = ?");
+      values.push(hashed);
     }
-    if (data.role !== undefined) { fields.push('role = ?'); values.push(data.role); }
+    if (data.role !== undefined) {
+      fields.push("role = ?");
+      values.push(data.role);
+    }
 
-    if (fields.length === 0) return callback({ message: 'Không có dữ liệu cập nhật' }, null);
+    if (fields.length === 0)
+      return callback({ message: "Không có dữ liệu cập nhật" }, null);
 
     values.push(id);
     db.query(
-      `UPDATE ${table_name} SET ${fields.join(', ')} WHERE Account_id = ? AND is_deleted = 0`,
+      `UPDATE ${table_name} SET ${fields.join(
+        ", "
+      )} WHERE Account_id = ? AND is_deleted = 0`,
       values,
       (err, result) => (err ? callback(err, null) : callback(null, result))
     );
