@@ -82,3 +82,16 @@ exports.getHomeFilms = (req, res) => {
     });
 };
 
+// ✅ Lấy tất cả phim (cho kho phim / tìm kiếm)
+exports.getSearchData = (req, res) => {
+  film.getSearchData((err, result) => {
+    if (err) {
+      console.error("❌ Lỗi lấy dữ liệu phim:", err);
+      return res.status(500).json({ success: false, error: err.message });
+    }
+
+    console.log(`🎬 Truy vấn thành công: ${result.length} phim`);
+    res.status(200).json({ success: true, data: result });
+  });
+};
+

@@ -3,6 +3,7 @@ const router = express.Router();
 const filmController = require('../controllers/filmController');
 
 router.get('/home', filmController.getHomeFilms); 
+router.get('/find/all', filmController.getSearchData);
 router.get('/search', filmController.searchFilms);
 router.get('/', filmController.getFilms);
 router.get('/:id', filmController.getFilmByID);
