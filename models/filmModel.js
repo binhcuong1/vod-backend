@@ -16,7 +16,12 @@ const film = {
 
     getAll: (callback) => {
         db.query(
-            `SELECT * FROM ${table_name} WHERE is_deleted = 0 ORDER BY Film_id DESC`,
+            `
+            SELECT * 
+            FROM ${table_name} f
+            JOIN film_info fInfo on f.Film_id = fInfo.Film_id
+            WHERE f.is_deleted = 0 
+            ORDER BY f.Film_id DESC`,
             (err, result) => {
                 if (err) return callback(err, null);
                 callback(null, result);
