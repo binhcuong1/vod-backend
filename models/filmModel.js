@@ -14,6 +14,7 @@ const film = {
     );
   },
 
+
 // ✅ Dùng cho "Kho phim" — lấy toàn bộ dữ liệu phim chi tiết
 getSearchData: (callback) => {
   const query = `
