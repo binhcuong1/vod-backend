@@ -64,3 +64,21 @@ exports.searchFilms = (req, res) => {
         res.json({ success: true, data: result });
     });
 };
+
+
+// ✅ Lấy dữ liệu phim hiển thị cho trang Home (JOIN nhiều bảng)
+exports.getHomeFilms = (req, res) => {
+    film.getHomeData((err, result) => {
+        if (err) {
+            console.error("❌ Lỗi truy vấn getHomeData:", err);
+            return res.status(500).json({ success: false, error: err.message });
+        }
+        // 🔸 Chỉ lấy Top 10 phim mới nhất
+        const topFilms = result.slice(0, 10);
+        res.status(200).json({
+            success: true,
+            data: topFilms,
+        });
+    });
+};
+
