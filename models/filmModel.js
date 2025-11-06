@@ -14,10 +14,24 @@ const film = {
     );
   },
 
+  getAll: (callback) => {
+    db.query(
+      `
+            SELECT * 
+            FROM ${table_name} f
+            JOIN film_info fInfo on f.Film_id = fInfo.Film_id
+            WHERE f.is_deleted = 0 
+            ORDER BY f.Film_id DESC`,
+      (err, result) => {
+        if (err) return callback(err, null);
+        callback(null, result);
+      }
+    );
+  },
 
-// ✅ Dùng cho "Kho phim" — lấy toàn bộ dữ liệu phim chi tiết
-getSearchData: (callback) => {
-  const query = `
+  // ✅ Dùng cho "Kho phim" — lấy toàn bộ dữ liệu phim chi tiết
+  getSearchData: (callback) => {
+    const query = `
     SELECT 
       f.Film_id,
       f.Film_name,
@@ -41,12 +55,12 @@ getSearchData: (callback) => {
     ORDER BY f.Film_id DESC;
   `;
 
-  db.query(query, (err, result) => {
-    if (err) return callback(err);
-    console.log(`🎬 [FILM SEARCH DATA]: ${result.length} phim`);
-    callback(null, result);
-  });
-},
+    db.query(query, (err, result) => {
+      if (err) return callback(err);
+      console.log(`🎬 [FILM SEARCH DATA]: ${result.length} phim`);
+      callback(null, result);
+    });
+  },
 
 
   // ✅ Lấy dữ liệu hiển thị trang Home
