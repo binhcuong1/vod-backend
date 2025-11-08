@@ -14,6 +14,207 @@ const film = {
     );
   },
 
+  getDetail: (id, cb) => {
+    // 1) film + film_info + country
+    const qFilm = `
+    SELECT 
+      f.Film_id, f.Film_name, f.is_series, f.is_deleted,
+      fi.Original_name, fi.Description, fi.Release_year, fi.Duration,
+      fi.maturity_rating, fi.Country_id, c.Country_name,
+      fi.process_episode, fi.total_episode, fi.trailer_url, fi.film_status
+    FROM Film f
+    LEFT JOIN Film_info fi ON f.Film_id = fi.Film_id
+    LEFT JOIN Country   c  ON fi.Country_id = c.Country_id
+    WHERE f.Film_id = ? AND f.is_deleted = 0
+    LIMIT 1;
+  `;
+
+    // 2) genres
+    const qGenres = `
+    SELECT g.Genre_id AS id, g.Genre_name AS name
+    FROM Film_genre fg
+    JOIN Genre g ON fg.Genre_id = g.Genre_id
+    WHERE fg.Film_id = ?;
+  `;
+
+    // 3) posters
+    const qPosters = `
+    SELECT p.Poster_id, p.Postertype_id, p.Poster_url
+    FROM Poster p
+    WHERE p.Film_id = ? AND p.is_deleted = 0
+    ORDER BY p.Postertype_id ASC, p.Poster_id ASC;
+  `;
+
+    // 4) film sources (movie-level) — KHÔNG có Source_id trong DB, join resolution để lấy tên
+    const qFilmSources = `
+    SELECT fs.Resolution_id, r.Resolution_type, fs.Source_url
+    FROM Filmsource fs
+    JOIN Resolution r ON r.Resolution_id = fs.Resolution_id
+    WHERE fs.Film_id = ? AND fs.Episode_id IS NULL AND fs.is_deleted = 0
+    ORDER BY fs.Resolution_id ASC;
+  `;
+
+    // 5) cast
+    const qCast = `
+    SELECT fa.Actor_id AS id, a.Actor_name AS name, fa.Character_name
+    FROM Film_actor fa
+    JOIN Actor a ON fa.Actor_id = a.Actor_id
+    WHERE fa.Film_id = ?;
+  `;
+
+    // 6) seasons (DB không có Season_number)
+    const qSeasons = `
+    SELECT s.Season_id, s.Season_name
+    FROM Season s
+    WHERE s.Film_id = ? AND s.is_deleted = 0
+    ORDER BY s.Season_id ASC;
+  `;
+
+    // 7) episodes (DB chỉ có Episode_number, không có Title/Duration)
+    const qEpisodes = `
+    SELECT e.Episode_id, e.Season_id, e.Episode_number
+    FROM Episode e
+    WHERE e.Season_id IN (SELECT Season_id FROM Season WHERE Film_id = ? AND is_deleted = 0)
+      AND e.is_deleted = 0
+    ORDER BY e.Season_id ASC, e.Episode_number ASC, e.Episode_id ASC;
+  `;
+
+    // 8) episode sources — KHÔNG có Source_id, join resolution để lấy Resolution_type
+    const qEpisodeSources = `
+    SELECT fs.Episode_id, fs.Resolution_id, r.Resolution_type, fs.Source_url
+    FROM Filmsource fs
+    JOIN Resolution r ON r.Resolution_id = fs.Resolution_id
+    WHERE fs.Episode_id IN (
+      SELECT e.Episode_id
+      FROM Episode e
+      WHERE e.Season_id IN (SELECT s.Season_id FROM Season s WHERE s.Film_id = ? AND s.is_deleted = 0)
+        AND e.is_deleted = 0
+    )
+      AND fs.is_deleted = 0
+    ORDER BY fs.Episode_id ASC, fs.Resolution_id ASC;
+  `;
+
+    // Chạy tuần tự
+    db.query(qFilm, [id], (e1, r1) => {
+      if (e1) return cb(e1);
+      if (!r1 || r1.length === 0) return cb(null, null);
+      const filmRow = r1[0];
+
+      db.query(qGenres, [id], (e2, genres) => {
+        if (e2) return cb(e2);
+
+        db.query(qPosters, [id], (e3, posters) => {
+          if (e3) return cb(e3);
+
+          db.query(qFilmSources, [id], (e4, filmSources) => {
+            if (e4) return cb(e4);
+
+            db.query(qCast, [id], (e5, cast) => {
+              if (e5) return cb(e5);
+
+              db.query(qSeasons, [id], (e6, seasons = []) => {
+                if (e6) seasons = [];
+
+                db.query(qEpisodes, [id], (e7, episodes = []) => {
+                  if (e7) episodes = [];
+
+                  db.query(qEpisodeSources, [id], (e8, epSources = []) => {
+                    if (e8) epSources = [];
+
+                    // Gộp episodes vào seasons
+                    const seasonMap = new Map();
+                    (seasons || []).forEach(s => seasonMap.set(s.Season_id, {
+                      season_id: s.Season_id,
+                      name: s.Season_name,
+                      // DB không có Season_number -> bỏ
+                      episodes: []
+                    }));
+
+                    (episodes || []).forEach(e => {
+                      const bucket = seasonMap.get(e.Season_id);
+                      if (bucket) {
+                        bucket.episodes.push({
+                          episode_id: e.Episode_id,
+                          number: e.Episode_number,
+                          // DB không có Title/Duration -> set null
+                          title: null,
+                          duration: null,
+                          sources: []
+                        });
+                      }
+                    });
+
+                    // map episode sources
+                    const epMap = new Map();
+                    Array.from(seasonMap.values()).forEach(s => {
+                      s.episodes.forEach(ep => epMap.set(ep.episode_id, ep));
+                    });
+                    (epSources || []).forEach(s => {
+                      const ep = epMap.get(s.Episode_id);
+                      if (ep) ep.sources.push({
+                        // không có source_id trong DB
+                        resolution_id: s.Resolution_id,
+                        resolution_type: s.Resolution_type,
+                        source_url: s.Source_url
+                      });
+                    });
+
+                    const seasonsArr = Array.from(seasonMap.values());
+
+                    // Build JSON cuối
+                    const data = {
+                      film: {
+                        id: filmRow.Film_id,
+                        name: filmRow.Film_name,
+                        is_series: !!filmRow.is_series
+                      },
+                      info: {
+                        original_name: filmRow.Original_name,
+                        description: filmRow.Description,
+                        release_year: filmRow.Release_year,
+                        duration: filmRow.Duration,
+                        maturity_rating: filmRow.maturity_rating,
+                        country: {
+                          id: filmRow.Country_id,
+                          name: filmRow.Country_name
+                        },
+                        process_episode: filmRow.process_episode,
+                        total_episode: filmRow.total_episode,
+                        trailer_url: filmRow.trailer_url,
+                        film_status: filmRow.film_status
+                      },
+                      genres: (genres || []).map(g => ({ id: g.id, name: g.name })),
+                      posters: (posters || []).map(p => ({
+                        poster_id: p.Poster_id,
+                        postertype_id: p.Postertype_id,
+                        poster_url: p.Poster_url
+                      })),
+                      // movie-level sources
+                      sources: (filmSources || []).map(s => ({
+                        // không có source_id
+                        resolution_id: s.Resolution_id,
+                        resolution_type: s.Resolution_type,
+                        source_url: s.Source_url
+                      })),
+                      cast: (cast || []).map(a => ({
+                        actor_id: a.id, name: a.name, character_name: a.Character_name
+                      })),
+                      seasons: seasonsArr,
+                      has_series: seasonsArr.length > 0
+                    };
+
+                    cb(null, data);
+                  });
+                });
+              });
+            });
+          });
+        });
+      });
+    });
+  },
+
+
   getAll: (callback) => {
     db.query(
       `
@@ -61,7 +262,6 @@ const film = {
       callback(null, result);
     });
   },
-
 
   // ✅ Lấy dữ liệu hiển thị trang Home
   getHomeData: (callback) => {
@@ -121,7 +321,7 @@ const film = {
     );
   },
 
-  createDeep : (payload, cb) => {
+  createDeep: (payload, cb) => {
     const usePool = typeof db.getConnection === 'function';
     const begin = (conn, next) => conn.beginTransaction(next);
     const commit = (conn, next) => conn.commit(next);

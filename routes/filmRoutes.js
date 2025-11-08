@@ -5,8 +5,11 @@ const filmController = require('../controllers/filmController');
 router.get('/home', filmController.getHomeFilms); 
 router.get('/find/all', filmController.getSearchData);
 router.get('/search', filmController.searchFilms);
-router.get('/', filmController.getFilms);
+
+router.get('/:id/detail', filmController.getFilmDetail);
 router.get('/:id', filmController.getFilmByID);
+router.get('/', filmController.getFilms);
+
 router.post('/', filmController.createFilm);
 router.put('/:id', filmController.updateFilm);
 router.delete('/:id', filmController.deleteFilm);
