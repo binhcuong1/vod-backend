@@ -48,9 +48,9 @@ const film = {
     // 4) film sources (movie-level) — KHÔNG có Source_id trong DB, join resolution để lấy tên
     const qFilmSources = `
     SELECT fs.Resolution_id, r.Resolution_type, fs.Source_url
-    FROM Filmsource fs
+    FROM FilmSource fs
     JOIN Resolution r ON r.Resolution_id = fs.Resolution_id
-    WHERE fs.Film_id = ? AND fs.Episode_id IS NULL AND fs.is_deleted = 0
+    WHERE fs.Film_id = ? AND fs.Episode_id IS NULL
     ORDER BY fs.Resolution_id ASC;
   `;
 
@@ -82,7 +82,7 @@ const film = {
     // 8) episode sources — KHÔNG có Source_id, join resolution để lấy Resolution_type
     const qEpisodeSources = `
     SELECT fs.Episode_id, fs.Resolution_id, r.Resolution_type, fs.Source_url
-    FROM Filmsource fs
+    FROM FilmSource fs
     JOIN Resolution r ON r.Resolution_id = fs.Resolution_id
     WHERE fs.Episode_id IN (
       SELECT e.Episode_id
@@ -390,7 +390,7 @@ const film = {
                     () => {
                       // 5) filmsource (Film_id hoặc Episode_id phải có)
                       insertMany(
-                        `INSERT INTO filmsource (Film_id, Episode_id, Resolution_id, Source_url) VALUES ?`,
+                        `INSERT INTO filmSource (Film_id, Episode_id, Resolution_id, Source_url) VALUES ?`,
                         sources,
                         (s) => {
                           if (!s || !s.source_url || !s.resolution_id) return null;
