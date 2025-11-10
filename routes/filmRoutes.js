@@ -3,7 +3,9 @@ const router = express.Router();
 const filmController = require('../controllers/filmController');
 const seasonController = require('../controllers/seasonController');
 
-router.get('/home', filmController.getHomefilms);
+router.get('/detail/:id', filmController.getFilmDetail);
+router.get('/recommendations', filmController.getRecommendations);
+router.get('/home', filmController.getHomefilms); 
 router.get('/find/all', filmController.getSearchData);
 router.get('/search', filmController.searchfilms);
 

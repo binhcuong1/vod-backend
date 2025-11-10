@@ -1,5 +1,6 @@
 const db = require("../config/db");
 const bcrypt = require("bcrypt");
+const profile = require("./profileModel"); 
 const table_name = "Account";
 
 const account = {
@@ -33,32 +34,75 @@ const account = {
     );
   },
 
+  //  Tạo tài khoản +  profile mặc định
   create: async (data, callback) => {
     try {
       const hashed = await bcrypt.hash(data.password, 10);
       db.query(
         `INSERT INTO ${table_name} (Email, Password, role) VALUES (?, ?, ?)`,
         [data.email, hashed, data.role || "user"],
-        (err, result) => (err ? callback(err, null) : callback(null, result))
+        (err, result) => {
+          if (err) return callback(err, null);
+
+          const accountId = result.insertId;
+          const profileName = data.email.split("@")[0];
+          const avatarUrl = "images/avatar.png";
+          // Tạo profile mặc định
+          profile.create(
+            {
+              profile_name: profileName,
+              avatar_url: avatarUrl,
+              account_id: accountId,
+            },
+            (pErr) => {
+              if (pErr) console.error("❌ Lỗi tạo profile:", pErr);
+              callback(null, result);
+            }
+          );
+        }
       );
     } catch (err) {
       callback(err, null);
     }
   },
-  createGoogle: async (email, callback) => {
+
+ 
+createGoogle: async (email, name, avatar, callback) => {
   try {
-    const hashed = await bcrypt.hash('', 10);
+    const hashed = await bcrypt.hash("", 10);
     db.query(
       `INSERT INTO ${table_name} (Email, Password, role) VALUES (?, ?, 'user')`,
       [email, hashed],
-      (err, result) => (err ? callback(err, null) : callback(null, result))
+      (err, result) => {
+        if (err) return callback(err, null);
+
+        const accountId = result.insertId;
+        const profileName = name || email.split("@")[0];
+        const avatarUrl =
+          typeof avatar === "string" && avatar.trim().startsWith("http")
+            ? avatar.trim()
+            : "images/avatar.png";
+
+        // Tạo profile có avatar Google
+        profile.create(
+          {
+            profile_name: profileName,
+            avatar_url: avatarUrl,
+            account_id: accountId,
+          },
+          (pErr) => {
+            if (pErr) console.error("❌ Lỗi tạo profile:", pErr);
+            callback(null, result);
+          }
+        );
+      }
     );
   } catch (err) {
     callback(err, null);
   }
 },
 
-  
+
 
   update: async (id, data, callback) => {
     const fields = [];
@@ -83,9 +127,7 @@ const account = {
 
     values.push(id);
     db.query(
-      `UPDATE ${table_name} SET ${fields.join(
-        ", "
-      )} WHERE Account_id = ? AND is_deleted = 0`,
+      `UPDATE ${table_name} SET ${fields.join(", ")} WHERE Account_id = ? AND is_deleted = 0`,
       values,
       (err, result) => (err ? callback(err, null) : callback(null, result))
     );
