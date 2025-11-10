@@ -65,23 +65,22 @@ const season = {
 
 
   update: (id, data, callback) => {
-    const fields = Object.keys(data)
-      .map((key) => `${key} = ?`)
-      .join(', ');
-    const values = Object.values(data);
-    values.push(id);
+    const allowed = ['Season_name', 'Film_id'];
+    const patch = {};
+    for (const k of allowed) if (k in data) patch[k] = data[k];
+    if (!Object.keys(patch).length) return callback(null, { affectedRows: 0 });
+
+    const fields = Object.keys(patch).map(k => `${k} = ?`).join(', ');
+    const values = [...Object.values(patch), id];
 
     db.query(
-      `UPDATE ${table_name} SET ${fields} WHERE Season_id = ? AND is_deleted = 0`,
+      `UPDATE Season SET ${fields} WHERE Season_id = ? AND is_deleted = 0`,
       values,
-      (err, result) => {
-        if (err) return callback(err, null);
-        callback(null, result);
-      }
+      (err, result) => err ? callback(err, null) : callback(null, result)
     );
   },
 
- 
+
   delete: (id, callback) => {
     db.query(
       `UPDATE ${table_name} SET is_deleted = 1 WHERE Season_id = ?`,

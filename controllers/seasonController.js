@@ -28,13 +28,13 @@ exports.getSeasonsByFilm = (req, res) => {
 
 
 exports.createSeason = (req, res) => {
-  const { season_name, film_id } = req.body;
-
+  // ưu tiên filmId từ params; fallback sang body.film_id
+  const film_id = req.params.filmId ?? req.body.film_id;
+  const season_name = (req.body.name ?? req.body.season_name ?? '').trim();
   if (!season_name || !film_id)
-    return res.status(400).json({ error: 'season_name và film_id là bắt buộc' });
+    return res.status(400).json({ error: 'Thiếu filmId hoặc tên mùa' });
 
   const data = { season_name, film_id };
-
   season.create(data, (err, result) => {
     if (err) return res.status(500).json({ error: err });
     res.status(201).json({ success: true, id: result.insertId });
@@ -42,20 +42,16 @@ exports.createSeason = (req, res) => {
 };
 
 exports.updateSeason = (req, res) => {
-  const id = req.params.id;
-  const data = {};
+  const id = Number(req.params.id);
+  const { season_name, film_id } = req.body || {};
 
-  if (req.body.season_name !== undefined) data.Season_name = req.body.season_name;
-  if (req.body.film_id !== undefined) data.Film_id = req.body.film_id;
+  const patch = {};
+  if (typeof season_name !== 'undefined') patch.Season_name = season_name;
+  if (typeof film_id !== 'undefined') patch.Film_id = Number(film_id);
 
-  if (Object.keys(data).length === 0)
-    return res.status(400).json({ error: 'Không có dữ liệu để cập nhật' });
-
-  season.update(id, data, (err, result) => {
-    if (err) return res.status(500).json({ error: err });
-    if (result.affectedRows === 0)
-      return res.status(404).json({ error: 'Không tìm thấy season!' });
-    res.json({ success: true });
+  season.update(id, patch, (err, result) => {
+    if (err) return res.status(500).json({ success: false, message: err.message });
+    res.json({ success: true, affected: result.affectedRows || 0 });
   });
 };
 
