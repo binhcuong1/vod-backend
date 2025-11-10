@@ -16,6 +16,29 @@ exports.getFilmByID = (req, res) => {
     });
 };
 
+exports.getFilmDetail = (req, res) => {
+    const id = Number(req.params.id);
+    if (!id)
+        return res.status(400).json({
+            success: false,
+            error: 'Thiếu Film_id'
+        });
+
+    film.getDetail(id, (err, data) => {
+        if (err)
+            return res.status(500).json({
+                success: false,
+                error: err.message || String(err)
+            });
+        if (!data || !data.film)
+            return res.status(404).json({
+                success: false, 
+                error: 'Không tìm thấy phim!'
+            });
+        res.json({ success: true, data });
+    });
+};
+
 exports.createFilm = (req, res) => {
     // log để xem chính xác FE gửi gì
     console.log('[createFilm] body =', JSON.stringify(req.body, null, 2));
@@ -105,8 +128,6 @@ exports.searchFilms = (req, res) => {
     });
 };
 
-
-// ✅ Lấy dữ liệu phim hiển thị cho trang Home (JOIN nhiều bảng)
 exports.getHomeFilms = (req, res) => {
     film.getHomeData((err, result) => {
         if (err) {
@@ -122,7 +143,6 @@ exports.getHomeFilms = (req, res) => {
     });
 };
 
-// ✅ Lấy tất cả phim (cho kho phim / tìm kiếm)
 exports.getSearchData = (req, res) => {
     film.getSearchData((err, result) => {
         if (err) {
