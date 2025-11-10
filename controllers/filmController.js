@@ -135,3 +135,38 @@ exports.getSearchData = (req, res) => {
     });
 };
 
+// 📌 Lấy chi tiết phim cho trang Detail FE
+exports.getFilmDetail = (req, res) => {
+  const { id } = req.params;
+
+  film.getDetailByID(id, (err, data) => {
+    if (err) {
+      console.error("❌ Lỗi lấy chi tiết phim:", err);
+      return res.status(500).json({ success: false, message: "Lỗi server" });
+    }
+    if (!data) {
+      return res.status(404).json({ success: false, message: "Không tìm thấy phim" });
+    }
+    res.json({ success: true, data });
+  });
+};
+
+// 📌 Lấy danh sách phim đề xuất cùng quốc gia
+exports.getRecommendations = (req, res) => {
+  const { countryName, excludeFilmId } = req.query;
+
+  if (!countryName || !excludeFilmId) {
+    return res.status(400).json({
+      success: false,
+      message: "Thiếu tham số countryName hoặc excludeFilmId"
+    });
+  }
+
+  film.getRecommendationsByCountry(countryName, excludeFilmId, (err, data) => {
+    if (err) {
+      console.error("❌ Lỗi lấy phim đề xuất:", err);
+      return res.status(500).json({ success: false, message: "Lỗi server" });
+    }
+    res.json({ success: true, data });
+  });
+};
