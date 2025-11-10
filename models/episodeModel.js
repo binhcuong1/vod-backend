@@ -71,23 +71,24 @@ const episode = {
   },
 
   update: (id, data, callback) => {
-    const fields = Object.keys(data)
-      .map((key) => `${key} = ?`)
-      .join(', ');
-    const values = Object.values(data);
-    values.push(id);
+    const allowed = ['Episode_number', 'Season_id', 'Title', 'Duration'];
+    const patch = {};
+    for (const k of allowed)
+      if (k in data) patch[k] = data[k];
+
+    if (!Object.keys(patch).length) return callback(null, { affectedRows: 0 });
+
+    const fields = Object.keys(patch).map(k => `${k} = ?`).join(', ');
+    const values = [...Object.values(patch), id];
 
     db.query(
-      `UPDATE ${table_name} SET ${fields} WHERE Episode_id = ? AND is_deleted = 0`,
+      `UPDATE Episode SET ${fields} WHERE Episode_id = ? AND is_deleted = 0`,
       values,
-      (err, result) => {
-        if (err) return callback(err, null);
-        callback(null, result);
-      }
+      (err, result) => err ? callback(err, null) : callback(null, result)
     );
   },
 
-  
+
   delete: (id, callback) => {
     db.query(
       `UPDATE ${table_name} SET is_deleted = 1 WHERE Episode_id = ?`,
@@ -95,6 +96,28 @@ const episode = {
       (err, result) => {
         if (err) return callback(err, null);
         callback(null, result);
+      }
+    );
+  },
+
+  createAutoNumber: (season_id, callback) => {
+    db.query(
+      `SELECT COALESCE(MAX(Episode_number),0) AS maxno
+       FROM ${table_name}
+       WHERE Season_id = ? AND is_deleted = 0`,
+      [season_id],
+      (err, rows) => {
+        if (err) return callback(err, null);
+        const nextNo = Number(rows[0].maxno) + 1;
+        db.query(
+          `INSERT INTO ${table_name} (Episode_number, Season_id)
+           VALUES (?, ?)`,
+          [nextNo, season_id],
+          (e2, r2) => {
+            if (e2) return callback(e2, null);
+            callback(null, { insertId: r2.insertId, number: nextNo });
+          }
+        );
       }
     );
   },

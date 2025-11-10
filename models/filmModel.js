@@ -577,21 +577,92 @@ getRecommendationsByCountry: (countryName, excludeFilmId, callback) => {
     }
   },
 
-  update: (id, data, callback) => {
-    const fields = Object.keys(data)
-      .map((key) => `${key} = ?`)
-      .join(', ');
-    const values = Object.values(data);
-    values.push(id);
+  update: (id, data, cb) => {
+    const fields = Object.keys(data).map(k => `${k} = ?`).join(', ');
+    const values = [...Object.values(data), id];
+    db.query(`UPDATE ${table_name} SET ${fields} WHERE Film_id = ?`, values, (err, r) => {
+      if (err) return cb(err, null);
+      cb(null, r);
+    });
+  },
 
-    db.query(
-      `UPDATE ${table_name} SET ${fields} WHERE Film_id = ?`,
-      values,
-      (err, result) => {
-        if (err) return callback(err, null);
-        callback(null, result);
-      }
+  // ===== Các hàm async dùng trong controller mới =====
+
+  updateBasic: async (conn, id, data) => {
+    const fields = Object.keys(data).map(k => `${k} = ?`).join(', ');
+    const values = [...Object.values(data), id];
+    await conn.query(`UPDATE Film SET ${fields} WHERE Film_id = ?`, values);
+  },
+
+  upsertInfo: async (conn, filmId, info) => {
+    const [rows] = await conn.query(`SELECT 1 FROM Film_info WHERE Film_id = ? LIMIT 1`, [filmId]);
+    if (rows.length) {
+      const fields = Object.keys(info).map(k => `${k} = ?`).join(', ');
+      const values = [...Object.values(info), filmId];
+      await conn.query(`UPDATE Film_info SET ${fields} WHERE Film_id = ?`, values);
+    } else {
+      await conn.query(`INSERT INTO Film_info SET ?`, { ...info, Film_id: filmId });
+    }
+  },
+
+  replaceGenres: async (conn, filmId, ids) => {
+    await conn.query(`DELETE FROM Film_genre WHERE Film_id = ?`, [filmId]);
+    if (ids.length) {
+      const values = ids.map(gid => [filmId, gid]);
+      await conn.query(`INSERT INTO Film_genre (Film_id, Genre_id) VALUES ?`, [values]);
+    }
+  },
+
+  replaceActors: async (conn, filmId, rows) => {
+    await conn.query(`DELETE FROM Film_actor WHERE Film_id = ?`, [filmId]);
+    if (rows.length) {
+      const values = rows.map(a => [filmId, a.actor_id, a.character_name ?? null]);
+      await conn.query(
+        `INSERT INTO Film_actor (Film_id, Actor_id, Character_name) VALUES ?`,
+        [values]
+      );
+    }
+  },
+
+  // Đồng bộ posters: những cái gửi lên thì insert/update, cái nào đang có trong DB mà không còn trong payload => is_deleted = 1
+  syncPosters: async (conn, filmId, posters) => {
+    // lấy danh sách hiện có
+    const [cur] = await conn.query(
+      `SELECT Poster_id, Postertype_id, Poster_url, is_deleted
+       FROM Poster WHERE Film_id = ?`, [filmId]
     );
+    const curMap = new Map(cur.map(p => [String(p.Poster_id), p]));
+
+    // tập id còn tồn tại trong payload
+    const keepIds = new Set();
+
+    for (const p of posters) {
+      if (p.poster_id) {
+        // UPDATE
+        keepIds.add(String(p.poster_id));
+        await conn.query(
+          `UPDATE Poster 
+             SET Postertype_id = ?, Poster_url = ?, is_deleted = ?
+           WHERE Poster_id = ? AND Film_id = ?`,
+          [p.postertype_id, p.poster_url, p.is_deleted ? 1 : 0, p.poster_id, filmId]
+        );
+      } else {
+        // INSERT
+        const [r] = await conn.query(
+          `INSERT INTO Poster (Film_id, Postertype_id, Poster_url, is_deleted)
+           VALUES (?, ?, ?, 0)`,
+          [filmId, p.postertype_id, p.poster_url]
+        );
+        keepIds.add(String(r.insertId));
+      }
+    }
+
+    // những poster đang có trong DB mà không còn trong payload -> soft delete
+    for (const old of cur) {
+      if (!keepIds.has(String(old.Poster_id)) && old.is_deleted === 0) {
+        await conn.query(`UPDATE Poster SET is_deleted = 1 WHERE Poster_id = ?`, [old.Poster_id]);
+      }
+    }
   },
 
   delete: (id, callback) => {
