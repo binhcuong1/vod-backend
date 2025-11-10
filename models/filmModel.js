@@ -310,6 +310,152 @@ const film = {
     });
   },
 
+// ✅ Lấy chi tiết phim rút gọn
+getDetailByID: (id, callback) => {
+  const sql = `
+    SELECT 
+      f.Film_id,
+      f.Film_name,
+      f.is_series,
+      fi.Original_name,
+      fi.Description,
+      fi.Release_year,
+      fi.Duration,
+      fi.maturity_rating,
+      fi.Country_id,
+      c.Country_name,
+      fi.process_episode,
+      fi.total_episode,
+      fi.trailer_url,
+      fi.film_status,
+
+      -- 🔹 Thể loại
+      GROUP_CONCAT(DISTINCT g.Genre_name ORDER BY g.Genre_name SEPARATOR ', ') AS genres,
+
+      -- 🔹 Poster chính & banner
+      MAX(CASE WHEN p.Postertype_id = 1 THEN p.Poster_url END) AS poster_main,
+      MAX(CASE WHEN p.Postertype_id = 3 THEN p.Poster_url END) AS poster_banner,
+
+      -- 🔹 Nguồn phim (kèm độ phân giải)
+      GROUP_CONCAT(DISTINCT CONCAT(r.Resolution_type, ':', fs.Source_url) SEPARATOR ',') AS Sources
+
+    FROM Film f
+    LEFT JOIN Film_info fi ON f.Film_id = fi.Film_id
+    LEFT JOIN Country c ON fi.Country_id = c.Country_id
+    LEFT JOIN Film_genre fg ON f.Film_id = fg.Film_id
+    LEFT JOIN Genre g ON fg.Genre_id = g.Genre_id
+    LEFT JOIN Poster p ON f.Film_id = p.Film_id AND p.is_deleted = 0
+    LEFT JOIN FilmSource fs ON f.Film_id = fs.Film_id
+    LEFT JOIN Resolution r ON fs.Resolution_id = r.Resolution_id
+    WHERE f.Film_id = ? AND f.is_deleted = 0
+    GROUP BY f.Film_id
+    LIMIT 1;
+  `;
+
+  const sqlActors = `
+    SELECT a.Actor_id, a.Actor_name, a.Actor_gender, a.Actor_avatar, fa.Character_name
+    FROM Film_actor fa JOIN Actor a ON fa.Actor_id = a.Actor_id
+    WHERE fa.Film_id = ?;
+  `;
+
+  const sqlSeasons = `
+    SELECT s.Season_id, s.Season_name,
+           JSON_ARRAYAGG(JSON_OBJECT('Episode_id', e.Episode_id, 'Episode_number', e.Episode_number)) AS Episodes
+    FROM Season s
+    LEFT JOIN Episode e ON s.Season_id = e.Season_id AND e.is_deleted = 0
+    WHERE s.Film_id = ? AND s.is_deleted = 0
+    GROUP BY s.Season_id
+    ORDER BY s.Season_id;
+  `;
+
+  db.query(sql, [id], (err, filmRows) => {
+    if (err) return callback(err);
+    if (!filmRows.length) return callback(null, null);
+
+    const film = filmRows[0];
+    db.query(sqlActors, [id], (err2, actorRows) => {
+      if (err2) return callback(err2);
+      film.Actors = actorRows;
+      db.query(sqlSeasons, [id], (err3, seasonRows) => {
+        if (err3) return callback(err3);
+        film.Seasons = seasonRows;
+        callback(null, film);
+      });
+    });
+  });
+},
+
+
+
+// ✅ Lấy danh sách phim đề xuất theo quốc gia hoặc thể loại 
+getRecommendationsByCountry: (countryName, excludeFilmId, callback) => {
+  const sql = `
+    SELECT 
+      f.Film_id,
+      f.Film_name,
+      f.is_series,
+      fi.Release_year,
+      fi.film_status,
+      c.Country_name,
+      GROUP_CONCAT(DISTINCT g.Genre_name ORDER BY g.Genre_name SEPARATOR ', ') AS genres,
+
+      -- 🔹 Poster chính
+      (
+        SELECT p1.Poster_url
+        FROM Poster p1
+        WHERE p1.Film_id = f.Film_id
+          AND p1.Postertype_id = 1
+          AND p1.is_deleted = 0
+        LIMIT 1
+      ) AS poster_main,
+
+      -- 🔹 Poster banner phụ
+      (
+        SELECT p2.Poster_url
+        FROM Poster p2
+        WHERE p2.Film_id = f.Film_id
+          AND p2.Postertype_id = 3
+          AND p2.is_deleted = 0
+        LIMIT 1
+      ) AS poster_banner
+
+    FROM Film f
+    JOIN Film_info fi ON f.Film_id = fi.Film_id
+    JOIN Country c ON fi.Country_id = c.Country_id
+    LEFT JOIN Film_genre fg ON f.Film_id = fg.Film_id
+    LEFT JOIN Genre g ON fg.Genre_id = g.Genre_id
+
+    WHERE f.is_deleted = 0
+      AND f.Film_id <> ?
+      AND (
+          -- ✅ cùng quốc gia
+          c.Country_name = ?
+          -- ✅ hoặc cùng thể loại
+          OR fg.Genre_id IN (
+              SELECT Genre_id
+              FROM Film_genre
+              WHERE Film_id = ?
+          )
+      )
+
+    GROUP BY f.Film_id
+    ORDER BY RAND()
+    LIMIT 10;
+  `;
+
+  db.query(sql, [excludeFilmId, countryName, excludeFilmId], (err, rows) => {
+    if (err) {
+      console.error("❌ Lỗi truy vấn phim đề xuất:", err);
+      return callback(err, null);
+    }
+    callback(null, rows);
+  });
+},
+
+
+
+
+
   create: (data, callback) => {
     db.query(
       `INSERT INTO ${table_name} (Film_name, is_series) VALUES (?, ?)`,
