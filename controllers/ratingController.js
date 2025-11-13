@@ -1,6 +1,5 @@
 const rating = require('../models/ratingModel');
 
-
 exports.getRatings = (req, res) => {
   rating.getAll((err, result) => {
     if (err) return res.status(500).json({ error: err });
@@ -8,27 +7,28 @@ exports.getRatings = (req, res) => {
   });
 };
 
-
 exports.getRatingsByFilm = (req, res) => {
-  const filmId = req.params.filmId;
+  const filmId = Number(req.params.filmId);
+  if (isNaN(filmId)) return res.status(400).json({ error: 'filmId không hợp lệ' });
+
   rating.getByFilm(filmId, (err, result) => {
     if (err) return res.status(500).json({ error: err });
     res.json({ success: true, data: result });
   });
 };
 
-
 exports.getRatingsByProfile = (req, res) => {
-  const profileId = req.params.profileId;
+  const profileId = Number(req.params.profileId);
+  if (isNaN(profileId)) return res.status(400).json({ error: 'profileId không hợp lệ' });
+
   rating.getByProfile(profileId, (err, result) => {
     if (err) return res.status(500).json({ error: err });
     res.json({ success: true, data: result });
   });
 };
 
-
 exports.upsertRating = (req, res) => {
-  const { profile_id, film_id, episode_id, score, review } = req.body;
+  const { profile_id, film_id, score, review } = req.body;
 
   if (!profile_id || !film_id || !score)
     return res.status(400).json({ error: 'profile_id, film_id và score là bắt buộc' });
@@ -36,15 +36,17 @@ exports.upsertRating = (req, res) => {
   if (score < 1 || score > 5)
     return res.status(400).json({ error: 'Score phải nằm trong khoảng 1-5' });
 
-  rating.upsert({ profile_id, film_id, episode_id, score, review }, (err) => {
+  rating.upsert({ profile_id, film_id, score, review }, (err) => {
     if (err) return res.status(500).json({ error: err });
     res.status(201).json({ success: true, message: 'Đã lưu đánh giá thành công' });
   });
 };
 
-
 exports.deleteRating = (req, res) => {
-  const { profile_id, film_id } = req.params;
+  const { profile_id, film_id } = req.body;
+  if (!profile_id || !film_id)
+    return res.status(400).json({ error: 'Thiếu profile_id hoặc film_id' });
+
   rating.delete(profile_id, film_id, (err, result) => {
     if (err) return res.status(500).json({ error: err });
     if (result.affectedRows === 0)
@@ -53,9 +55,10 @@ exports.deleteRating = (req, res) => {
   });
 };
 
-
 exports.getAverageScore = (req, res) => {
-  const filmId = req.params.filmId;
+  const filmId = Number(req.params.filmId);
+  if (isNaN(filmId)) return res.status(400).json({ error: 'filmId không hợp lệ' });
+
   rating.getAverageScore(filmId, (err, result) => {
     if (err) return res.status(500).json({ error: err });
     res.json({ success: true, data: result || { avg_score: 0, total_reviews: 0 } });
