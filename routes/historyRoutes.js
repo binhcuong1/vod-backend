@@ -5,6 +5,7 @@ const historyController = require('../controllers/historyController');
 
 router.get('/', historyController.getHistories);
 // Lấy lịch sử theo Profile
+router.get('/continue/:profileId', historyController.getContinueWatching);
 router.get('/profile/:profileId', historyController.getHistoriesByProfile);
 router.get('/:id', historyController.getHistoryByID);
 // Upsert progress (insert/update theo Profile+Film+(Episode))

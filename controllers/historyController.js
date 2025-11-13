@@ -31,20 +31,39 @@ exports.getHistoriesByProfile = (req, res) => {
 exports.upsertProgress = (req, res) => {
   const { profile_id, film_id, episode_id, position_seconds = 0, duration_seconds = 0 } = req.body;
 
-  if (!profile_id || !film_id)
+  if (!profile_id || !film_id) {
+   
     return res.status(400).json({ error: 'profile_id và film_id là bắt buộc' });
+  }
+  // Bỏ qua nếu người xem chưa xem đủ 5 giây
+  if (position_seconds < 5) {
+    return res.json({
+      success: false,
+      message: "Không lưu vì người dùng chưa xem đủ thời lượng tối thiểu (5s).",
+    });
+  }
 
+  //  Gọi model thực hiện upsert
   history.upsertProgress(
     { profile_id, film_id, episode_id, position_seconds, duration_seconds },
     (err, result) => {
-      if (err) return res.status(500).json({ error: err });
+      if (err) {
+        console.error("[API] Lỗi khi upsert progress:", err);
+        return res.status(500).json({ error: err });
+      }
+
       if (result.upserted) {
-        return res.status(201).json({ success: true, message: 'Đã tạo lịch sử xem mới', id: result.insertId });
+        return res.status(201).json({
+          success: true,
+          message: 'Đã tạo lịch sử xem mới',
+          id: result.insertId,
+        });
       }
       return res.json({ success: true, message: 'Đã cập nhật tiến độ xem' });
     }
   );
 };
+
 
 // Cập nhật theo History_id (tùy ý các trường)
 exports.updateHistory = (req, res) => {
@@ -84,5 +103,14 @@ exports.clearHistoryByProfile = (req, res) => {
   history.clearByProfile(profileId, (err) => {
     if (err) return res.status(500).json({ error: err });
     res.json({ success: true, message: 'Đã xóa toàn bộ lịch sử của profile' });
+  });
+};
+
+// 🔹 Lấy danh sách "xem tiếp"
+exports.getContinueWatching = (req, res) => {
+  const profileId = req.params.profileId;
+  history.getContinueWatching(profileId, (err, result) => {
+    if (err) return res.status(500).json({ error: err });
+    res.json({ success: true, data: result });
   });
 };
