@@ -32,20 +32,22 @@ const profile = {
   },
 
 
-  getByAccount: (accountId, callback) => {
-    db.query(
-      `SELECT p.*, a.Email, a.role
-       FROM ${table_name} p
-       LEFT JOIN Account a ON p.Account_id = a.Account_id
-       WHERE p.Account_id = ? AND p.is_deleted = 0
-       LIMIT 1`,
-      [accountId],
-      (err, result) => {
-        if (err) return callback(err, null);
-        callback(null, result[0] || null);
-      }
-    );
-  },
+ getByAccount: (accountId, callback) => {
+  db.query(
+    `SELECT p.*, a.Email, a.role
+     FROM ${table_name} p
+     LEFT JOIN Account a ON p.Account_id = a.Account_id
+     WHERE p.Account_id = ? AND p.is_deleted = 0
+     ORDER BY p.Profile_id DESC
+     LIMIT 1`,   
+    [accountId],
+    (err, result) => {
+      if (err) return callback(err, null);
+      callback(null, result[0] || null);
+    }
+  );
+},
+
 
   
   create: (data, callback) => {
