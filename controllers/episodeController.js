@@ -101,3 +101,64 @@ exports.deleteEpisode = (req, res) => {
     res.json({ success: true });
   });
 };
+
+exports.getEpisodeSources = async (req, res) => {
+  try {
+    const episodeId = Number(req.params.id);
+
+    // tìm Film_id của episode
+    const [[found]] = await db.query(`
+      SELECT s.Film_id
+      FROM Episode e JOIN Season s ON s.Season_id = e.Season_id
+      WHERE e.Episode_id = ? AND e.is_deleted = 0
+      LIMIT 1
+    `, [episodeId]);
+    if (!found) return res.status(404).json({ success: false, message: 'Episode not found' });
+
+    const [rows] = await db.query(`
+      SELECT fs.Resolution_id, r.Resolution_type, fs.Source_url
+      FROM FilmSource fs
+      JOIN Resolution r ON r.Resolution_id = fs.Resolution_id
+      WHERE fs.Film_id = ? AND fs.Episode_id = ?
+      ORDER BY fs.Resolution_id
+    `, [found.Film_id, episodeId]);
+
+    res.json({ success: true, film_id: found.Film_id, episode_id: episodeId, data: rows });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+};
+
+exports.updateEpisodeSources = async (req, res) => {
+  try {
+    const episodeId = Number(req.params.id);
+    const { sources = [] } = req.body || {};
+
+    // lấy Film_id của episode
+    const [[found]] = await db.query(`
+      SELECT s.Film_id
+      FROM Episode e JOIN Season s ON s.Season_id = e.Season_id
+      WHERE e.Episode_id = ? AND e.is_deleted = 0
+      LIMIT 1
+    `, [episodeId]);
+    if (!found) return res.status(404).json({ success: false, message: 'Episode not found' });
+
+    // replace toàn bộ sources của tập
+    await db.query(`DELETE FROM FilmSource WHERE Film_id=? AND Episode_id=?`, [found.Film_id, episodeId]);
+
+    const values = (Array.isArray(sources) ? sources : [])
+      .filter(s => s && s.resolution_id && s.source_url)
+      .map(s => [found.Film_id, episodeId, Number(s.resolution_id), s.source_url]);
+
+    if (values.length) {
+      await db.query(
+        `INSERT INTO FilmSource (Film_id, Episode_id, Resolution_id, Source_url) VALUES ?`,
+        [values]
+      );
+    }
+
+    res.json({ success: true, film_id: found.Film_id, episode_id: episodeId, count: values.length });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+};

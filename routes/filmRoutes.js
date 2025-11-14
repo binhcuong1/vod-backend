@@ -17,7 +17,7 @@ router.post('/', filmController.createfilm);
 router.put('/:id', filmController.updatefilm);
 router.delete('/:id', filmController.deletefilm);
 
-// === NEW: alias seasons theo phim (giữ nguyên router seasons hiện có) ===
+// alias seasons theo phim (giữ nguyên router seasons hiện có) ===
 router.get('/:filmId/seasons', seasonController.getSeasonsByFilm);
 router.post('/:filmId/seasons', (req, res) => {
     // bọc lại để không phải đổi controller hiện có
@@ -27,5 +27,9 @@ router.post('/:filmId/seasons', (req, res) => {
     };
     seasonController.createSeason(req, res);
 });
+
+// NEW: sources cho phim lẻ
+router.get('/:filmId/sources', filmController.getFilmSources);
+router.put('/:filmId/sources', filmController.updateFilmSources);
 
 module.exports = router;
