@@ -170,8 +170,7 @@ upsertProgress: (data, callback) => {
       (err, result) => (err ? callback(err) : callback(null, result))
     );
   },
-
-  // 🔹 Lấy danh sách phim "Xem tiếp" (chỉ tập mới nhất mỗi phim)
+// 🔹 Lấy danh sách Xem tiếp — luôn đúng tập đang xem gần nhất cho từng phim
 getContinueWatching: (profileId, callback) => {
   const sql = `
     SELECT 
@@ -183,6 +182,7 @@ getContinueWatching: (profileId, callback) => {
       h.position_seconds,
       h.duration_seconds,
       h.last_watched,
+
       (
         SELECT Poster_url
         FROM Poster p
@@ -191,23 +191,29 @@ getContinueWatching: (profileId, callback) => {
           AND p.is_deleted = 0
         LIMIT 1
       ) AS poster_url
+
     FROM ${table_name} h
     JOIN Film f ON f.Film_id = h.Film_id
     LEFT JOIN Episode e ON e.Episode_id = h.Episode_id
+
     WHERE h.Profile_id = ?
       AND h.is_deleted = 0
       AND h.position_seconds >= 5
-      AND h.duration_seconds >= 60
       AND h.position_seconds < (h.duration_seconds - 30)
-      AND h.History_id IN (
-        SELECT MAX(h2.History_id)
+
+      -- 🔥 Lấy đúng bản ghi cuối cùng của từng Film
+      AND h.History_id = (
+        SELECT h2.History_id
         FROM ${table_name} h2
         WHERE h2.Profile_id = h.Profile_id
-          AND h2.is_deleted = 0
-        GROUP BY h2.Film_id
+          AND h2.Film_id = h.Film_id
+        ORDER BY h2.last_watched DESC
+        LIMIT 1
       )
-    ORDER BY h.last_watched DESC, h.History_id DESC
-    LIMIT 10`;
+
+    ORDER BY h.last_watched DESC
+    LIMIT 10
+  `;
 
   db.query(sql, [profileId], (err, result) => {
     if (err) return callback(err);
