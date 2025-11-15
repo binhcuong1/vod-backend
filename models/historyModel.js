@@ -86,40 +86,72 @@ const history = {
     );
   },
 
-  // 🔹 Upsert tiến độ xem
-  upsertProgress: (data, callback) => {
-    const { profile_id, film_id, episode_id, position_seconds = 0, duration_seconds = 0 } = data;
+ // 🔹 Upsert tiến độ xem
+upsertProgress: (data, callback) => {
+  const {
+    profile_id,
+    film_id,
+    episode_id,
+    position_seconds = 0,
+    duration_seconds = 0
+  } = data;
 
-    if (position_seconds < 5) {
-      return callback(null, { skipped: true });
+  if (position_seconds < 5) {
+    return callback(null, { skipped: true });
+  }
+
+  
+  const hasEpisode =
+    episode_id !== undefined &&
+    episode_id !== null &&
+    episode_id !== "";
+
+  const whereEpisode = hasEpisode
+    ? "Episode_id = ?"
+    : "Episode_id IS NULL";
+
+  const paramsUpdate = hasEpisode
+    ? [position_seconds, duration_seconds, profile_id, film_id, episode_id]
+    : [position_seconds, duration_seconds, profile_id, film_id];
+
+  const sqlUpdate = `
+    UPDATE ${table_name}
+    SET position_seconds = ?, duration_seconds = ?, last_watched = NOW()
+    WHERE Profile_id = ? AND Film_id = ? AND ${whereEpisode} AND is_deleted = 0
+  `;
+
+  db.query(sqlUpdate, paramsUpdate, (err, result) => {
+    if (err) return callback(err);
+
+    if (result.affectedRows > 0) {
+      return callback(null, {
+        affectedRows: result.affectedRows,
+        upserted: false
+      });
     }
 
-    const whereEpisode = episode_id ? 'Episode_id = ?' : 'Episode_id IS NULL';
-    const paramsUpdate = episode_id
-      ? [position_seconds, duration_seconds, profile_id, film_id, episode_id]
-      : [position_seconds, duration_seconds, profile_id, film_id];
+    // 🔥 INSERT đúng Episode_id
+    const sqlInsert = `
+      INSERT INTO ${table_name}
+        (Profile_id, Film_id, Episode_id, position_seconds, duration_seconds, last_watched)
+      VALUES (?, ?, ?, ?, ?, NOW())
+    `;
 
-    const sqlUpdate = `
-      UPDATE ${table_name}
-      SET position_seconds = ?, duration_seconds = ?, last_watched = NOW()
-      WHERE Profile_id = ? AND Film_id = ? AND ${whereEpisode} AND is_deleted = 0`;
+    const paramsInsert = [
+      profile_id,
+      film_id,
+      hasEpisode ? episode_id : null,
+      position_seconds,
+      duration_seconds
+    ];
 
-    db.query(sqlUpdate, paramsUpdate, (err, result) => {
-      if (err) return callback(err);
-      if (result.affectedRows > 0)
-        return callback(null, { affectedRows: result.affectedRows, upserted: false });
-
-      const sqlInsert = `
-        INSERT INTO ${table_name}
-          (Profile_id, Film_id, Episode_id, position_seconds, duration_seconds, last_watched)
-        VALUES (?, ?, ?, ?, ?, NOW())`;
-      const paramsInsert = [profile_id, film_id, episode_id || null, position_seconds, duration_seconds];
-      db.query(sqlInsert, paramsInsert, (err2, result2) => {
-        if (err2) return callback(err2);
-        callback(null, { insertId: result2.insertId, upserted: true });
-      });
+    db.query(sqlInsert, paramsInsert, (err2, result2) => {
+      if (err2) return callback(err2);
+      callback(null, { insertId: result2.insertId, upserted: true });
     });
-  },
+  });
+},
+
 
   // 🔹 Xóa mềm theo ID
   deleteById: (id, callback) => {
