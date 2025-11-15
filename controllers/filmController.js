@@ -1,5 +1,6 @@
 const film = require('../models/filmModel');
 const db = require('../config/db');
+const sql = typeof db.promise === 'function' ? db.promise() : db;
 
 exports.getfilms = (req, res) => {
     film.getAll((err, result) => {
@@ -231,36 +232,135 @@ exports.getSearchData = (req, res) => {
 
 // 📌 Lấy chi tiết phim cho trang Detail FE
 exports.getFilmDetail = (req, res) => {
-  const { id } = req.params;
+    const { id } = req.params;
 
-  film.getDetailByID(id, (err, data) => {
-    if (err) {
-      console.error("❌ Lỗi lấy chi tiết phim:", err);
-      return res.status(500).json({ success: false, message: "Lỗi server" });
-    }
-    if (!data) {
-      return res.status(404).json({ success: false, message: "Không tìm thấy phim" });
-    }
-    res.json({ success: true, data });
-  });
+    film.getDetailByID(id, (err, data) => {
+        if (err) {
+            console.error("❌ Lỗi lấy chi tiết phim:", err);
+            return res.status(500).json({ success: false, message: "Lỗi server" });
+        }
+        if (!data) {
+            return res.status(404).json({ success: false, message: "Không tìm thấy phim" });
+        }
+        res.json({ success: true, data });
+    });
 };
 
 // 📌 Lấy danh sách phim đề xuất cùng quốc gia
 exports.getRecommendations = (req, res) => {
-  const { countryName, excludeFilmId } = req.query;
+    const { countryName, excludeFilmId } = req.query;
 
-  if (!countryName || !excludeFilmId) {
-    return res.status(400).json({
-      success: false,
-      message: "Thiếu tham số countryName hoặc excludeFilmId"
-    });
-  }
-
-  film.getRecommendationsByCountry(countryName, excludeFilmId, (err, data) => {
-    if (err) {
-      console.error("❌ Lỗi lấy phim đề xuất:", err);
-      return res.status(500).json({ success: false, message: "Lỗi server" });
+    if (!countryName || !excludeFilmId) {
+        return res.status(400).json({
+            success: false,
+            message: "Thiếu tham số countryName hoặc excludeFilmId"
+        });
     }
-    res.json({ success: true, data });
-  });
-};
+
+    film.getRecommendationsByCountry(countryName, excludeFilmId, (err, data) => {
+        if (err) {
+            console.error("❌ Lỗi lấy phim đề xuất:", err);
+            return res.status(500).json({ success: false, message: "Lỗi server" });
+        }
+        res.json({ success: true, data });
+    });
+
+    // Helper: Lấy Episode_id đầu tiên của 1 phim (auto tạo nếu thiếu khi là phim lẻ)
+    async function ensureFirstEpisodeOfFilm(filmId) {
+        const [rows] = await sql.query(`
+    SELECT e.Episode_id
+    FROM Season s
+    JOIN Episode e ON e.Season_id = s.Season_id AND e.is_deleted = 0
+    WHERE s.Film_id = ?
+    ORDER BY e.Episode_number ASC, e.Episode_id ASC
+    LIMIT 1
+  `, [filmId]);
+
+        if (rows.length) return rows[0].Episode_id;
+
+        // nếu chưa có: tạo Season + Episode #1 (dành cho phim lẻ)
+        const [sRes] = await sql.query(
+            `INSERT INTO Season (Season_name, Film_id, is_deleted) VALUES ('Phần 1', ?, 0)`,
+            [filmId]
+        );
+        const seasonId = sRes.insertId;
+
+        const [eRes] = await sql.query(
+            `INSERT INTO Episode (Episode_number, Season_id, is_deleted) VALUES (1, ?, 0)`,
+            [seasonId]
+        );
+        return eRes.insertId;
+    }
+
+    exports.getFilmSources = async (req, res) => {
+        try {
+            const filmId = Number(req.params.filmId);
+            const [[film]] = await sql.query(
+                `SELECT is_series FROM Film WHERE Film_id=? AND is_deleted=0`,
+                [filmId]
+            );
+            if (!film) return res.status(404).json({ success: false, message: 'Film not found' });
+
+            // Với phim lẻ: xem sources của "tập đầu"
+            const episodeId = await ensureFirstEpisodeOfFilm(filmId);
+            const [rows] = await sql.query(`
+      SELECT fs.Resolution_id, r.Resolution_type, fs.Source_url
+      FROM FilmSource fs
+      JOIN Resolution r ON r.Resolution_id = fs.Resolution_id
+      WHERE fs.Film_id = ? AND fs.Episode_id = ?
+      ORDER BY fs.Resolution_id
+    `, [filmId, episodeId]);
+
+            res.json({ success: true, film_id: filmId, episode_id: episodeId, data: rows });
+        } catch (e) {
+            res.status(500).json({ success: false, message: e.message });
+        }
+    };
+
+    exports.updateFilmSources = async (req, res) => {
+        try {
+            const filmId = Number(req.params.filmId);
+            // ⚠️ destructuring từ {} (không phải []), để tránh TypeError khi body = undefined
+            const { sources = [] } = req.body || {};
+
+            // Chỉ cho phim lẻ cập nhật ở đây (phim bộ → cập nhật theo từng tập)
+            const [[film]] = await sql.query(
+                `SELECT is_series FROM Film WHERE Film_id=? AND is_deleted=0`,
+                [filmId]
+            );
+            if (!film) return res.status(404).json({ success: false, message: 'Film not found' });
+            if (film.is_series) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Series: update sources per episode at /api/episodes/:id/sources'
+                });
+            }
+
+            // Bảo đảm có 1 tập đại diện
+            const episodeId = await ensureFirstEpisodeOfFilm(filmId);
+
+            // Replace toàn bộ sources (xóa + insert lại)
+            await sql.query(
+                `DELETE FROM FilmSource WHERE Film_id=? AND Episode_id=?`,
+                [filmId, episodeId]
+            );
+
+            const values = (Array.isArray(sources) ? sources : [])
+                .filter(s => s && s.resolution_id && s.source_url)
+                .map(s => [filmId, episodeId, Number(s.resolution_id), s.source_url]);
+
+            if (values.length) {
+                // Nếu môi trường bạn không hỗ trợ "VALUES ?" bulk,
+                // thay thế bằng vòng lặp insert từng dòng (ghi bên dưới).
+                await sql.query(
+                    `INSERT INTO FilmSource (Film_id, Episode_id, Resolution_id, Source_url) VALUES ?`,
+                    [values]
+                );
+            }
+
+            res.json({ success: true, film_id: filmId, episode_id: episodeId, count: values.length });
+        } catch (e) {
+            res.status(500).json({ success: false, message: e.message });
+        }
+    };
+}

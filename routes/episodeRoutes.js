@@ -22,7 +22,8 @@ router.put('/:id/sources', episodeController.updateEpisodeSources);
 // Xóa tập
 router.delete('/:id', episodeController.deleteEpisode);
 
-// PATCH: xoá route trùng (đang lặp lại)
-// router.post('/episodes/:season_id/auto', episodeController.createEpisodeAuto);
+// NEW: xem/cập nhật sources cho 1 tập
+router.get('/:id/sources', episodeController.getEpisodeSources);
+router.put('/:id/sources', episodeController.updateEpisodeSources);
 
 module.exports = router;

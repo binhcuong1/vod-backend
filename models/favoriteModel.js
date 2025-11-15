@@ -2,7 +2,7 @@ const db = require('../config/db');
 const table_name = 'Favorite';
 
 const favorite = {
- 
+
   getAll: (callback) => {
     db.query(
       `SELECT f.Profile_id, p.Profile_name, f.Film_id, fi.Film_name
@@ -14,19 +14,38 @@ const favorite = {
     );
   },
 
- 
-  getByProfile: (profile_id, callback) => {
-    db.query(
-      `SELECT f.Film_id, fi.Film_name
-       FROM ${table_name} f
-       JOIN Film fi ON f.Film_id = fi.Film_id
-       WHERE f.Profile_id = ?`,
-      [profile_id],
-      (err, result) => (err ? callback(err, null) : callback(null, result))
-    );
+  getByProfile(profileId, callback) {
+    const sql = `
+      SELECT
+        fav.Profile_id,
+        fav.Film_id,
+        f.Film_name,
+        fi.Original_name,
+        fi.Release_year,
+        fi.Duration,
+        fi.maturity_rating,
+        fi.film_status,
+        p.Poster_url
+      FROM favorite AS fav
+      JOIN film AS f
+        ON fav.Film_id = f.Film_id
+      LEFT JOIN film_info AS fi
+        ON fi.Film_id = f.Film_id
+      LEFT JOIN poster AS p
+        ON p.Film_id = f.Film_id
+       AND p.Postertype_id = 1        -- 1 = Ảnh chính
+       AND p.is_deleted = 0
+      WHERE fav.Profile_id = ?
+        AND f.is_deleted = 0
+      ORDER BY fav.Film_id ASC;
+    `;
+
+    db.query(sql, [profileId], (err, rows) => {
+      if (err) return callback(err);
+      callback(null, rows);
+    });
   },
 
-  
   addFavorite: (data, callback) => {
     db.query(
       `INSERT INTO ${table_name} (Profile_id, Film_id) VALUES (?, ?)`,
@@ -35,7 +54,7 @@ const favorite = {
     );
   },
 
- 
+
   removeFavorite: (profile_id, film_id, callback) => {
     db.query(
       `DELETE FROM ${table_name} WHERE Profile_id = ? AND Film_id = ?`,
