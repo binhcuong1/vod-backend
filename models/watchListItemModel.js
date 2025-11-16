@@ -14,19 +14,30 @@ const watchListItem = {
     );
   },
 
-  
+
   getByWatchList: (watchListId, callback) => {
     db.query(
-      `SELECT wli.Film_id, f.Film_name, f.is_series, wli.Add_at
-       FROM ${table_name} wli
-       JOIN Film f ON wli.Film_id = f.Film_id
-       WHERE wli.WatchList_id = ?`,
+      `SELECT 
+    wli.Film_id,
+    f.Film_name,
+    f.is_series,
+    wli.Add_at,
+    p.Poster_url
+FROM watchlist_item wli
+JOIN film f ON wli.Film_id = f.Film_id
+LEFT JOIN poster p 
+    ON p.Film_id = f.Film_id 
+   AND p.Postertype_id = 1 
+   AND p.is_deleted = 0
+WHERE wli.WatchList_id = ?
+ORDER BY wli.Add_at DESC;
+`,
       [watchListId],
       (err, result) => (err ? callback(err, null) : callback(null, result))
     );
   },
 
-  
+
   add: (data, callback) => {
     db.query(
       `INSERT INTO ${table_name} (WatchList_id, Film_id)
@@ -36,7 +47,7 @@ const watchListItem = {
     );
   },
 
- 
+
   remove: (watchlist_id, film_id, callback) => {
     db.query(
       `DELETE FROM ${table_name} WHERE WatchList_id = ? AND Film_id = ?`,
@@ -45,7 +56,7 @@ const watchListItem = {
     );
   },
 
-  
+
 };
 
 module.exports = watchListItem;
