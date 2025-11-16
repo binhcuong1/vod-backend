@@ -1,5 +1,5 @@
 const db = require('../config/db');
-const table_name = 'WatchList';
+const table_name = 'watchlist';
 
 const watchList = {
 
