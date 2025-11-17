@@ -48,9 +48,9 @@ const film = {
     // 4) film sources (movie-level) — KHÔNG có Source_id trong DB, join resolution để lấy tên
     const qFilmSources = `
     SELECT fs.Resolution_id, r.Resolution_type, fs.Source_url
-    FROM FilmSource fs
-    JOIN Resolution r ON r.Resolution_id = fs.Resolution_id
-    WHERE fs.Film_id = ? AND fs.Episode_id IS NULL
+    FROM filmsource fs
+    JOIN resolution r ON r.Resolution_id = fs.Resolution_id
+    WHERE fs.Film_id = ?
     ORDER BY fs.Resolution_id ASC;
   `;
 
