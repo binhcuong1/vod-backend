@@ -72,7 +72,7 @@ const film = {
 
     // 7) episodes (DB chỉ có Episode_number, không có Title/Duration)
     const qEpisodes = `
-    SELECT e.Episode_id, e.Season_id, e.Episode_number
+    SELECT e.Episode_id, e.Season_id, e.Episode_number, e.Title, e.Duration
     FROM Episode e
     WHERE e.Season_id IN (SELECT Season_id FROM Season WHERE Film_id = ? AND is_deleted = 0)
       AND e.is_deleted = 0
@@ -90,7 +90,6 @@ const film = {
       WHERE e.Season_id IN (SELECT s.Season_id FROM Season s WHERE s.Film_id = ? AND s.is_deleted = 0)
         AND e.is_deleted = 0
     )
-      AND fs.is_deleted = 0
     ORDER BY fs.Episode_id ASC, fs.Resolution_id ASC;
   `;
 
@@ -137,8 +136,8 @@ const film = {
                           episode_id: e.Episode_id,
                           number: e.Episode_number,
                           // DB không có Title/Duration -> set null
-                          title: null,
-                          duration: null,
+                          title: e.Title,
+                          duration: e.Duration,
                           sources: []
                         });
                       }
@@ -213,7 +212,6 @@ const film = {
       });
     });
   },
-
 
   getAll: (callback) => {
     db.query(
