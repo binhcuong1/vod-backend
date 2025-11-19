@@ -308,9 +308,9 @@ const film = {
     });
   },
 
-// ✅ Lấy chi tiết phim rút gọn
-getDetailByID: (id, callback) => {
-  const sql = `
+  // ✅ Lấy chi tiết phim rút gọn
+  getDetailByID: (id, callback) => {
+    const sql = `
     SELECT 
       f.Film_id,
       f.Film_name,
@@ -350,13 +350,13 @@ getDetailByID: (id, callback) => {
     LIMIT 1;
   `;
 
-  const sqlActors = `
+    const sqlActors = `
     SELECT a.Actor_id, a.Actor_name, a.Actor_gender, a.Actor_avatar, fa.Character_name
     FROM Film_actor fa JOIN Actor a ON fa.Actor_id = a.Actor_id
     WHERE fa.Film_id = ?;
   `;
 
-  const sqlSeasons = `
+    const sqlSeasons = `
     SELECT s.Season_id, s.Season_name,
            JSON_ARRAYAGG(JSON_OBJECT('Episode_id', e.Episode_id, 'Episode_number', e.Episode_number)) AS Episodes
     FROM Season s
@@ -366,28 +366,28 @@ getDetailByID: (id, callback) => {
     ORDER BY s.Season_id;
   `;
 
-  db.query(sql, [id], (err, filmRows) => {
-    if (err) return callback(err);
-    if (!filmRows.length) return callback(null, null);
+    db.query(sql, [id], (err, filmRows) => {
+      if (err) return callback(err);
+      if (!filmRows.length) return callback(null, null);
 
-    const film = filmRows[0];
-    db.query(sqlActors, [id], (err2, actorRows) => {
-      if (err2) return callback(err2);
-      film.Actors = actorRows;
-      db.query(sqlSeasons, [id], (err3, seasonRows) => {
-        if (err3) return callback(err3);
-        film.Seasons = seasonRows;
-        callback(null, film);
+      const film = filmRows[0];
+      db.query(sqlActors, [id], (err2, actorRows) => {
+        if (err2) return callback(err2);
+        film.Actors = actorRows;
+        db.query(sqlSeasons, [id], (err3, seasonRows) => {
+          if (err3) return callback(err3);
+          film.Seasons = seasonRows;
+          callback(null, film);
+        });
       });
     });
-  });
-},
+  },
 
 
 
-// ✅ Lấy danh sách phim đề xuất theo quốc gia hoặc thể loại 
-getRecommendationsByCountry: (countryName, excludeFilmId, callback) => {
-  const sql = `
+  // ✅ Lấy danh sách phim đề xuất theo quốc gia hoặc thể loại 
+  getRecommendationsByCountry: (countryName, excludeFilmId, callback) => {
+    const sql = `
     SELECT 
       f.Film_id,
       f.Film_name,
@@ -441,14 +441,14 @@ getRecommendationsByCountry: (countryName, excludeFilmId, callback) => {
     LIMIT 10;
   `;
 
-  db.query(sql, [excludeFilmId, countryName, excludeFilmId], (err, rows) => {
-    if (err) {
-      console.error("❌ Lỗi truy vấn phim đề xuất:", err);
-      return callback(err, null);
-    }
-    callback(null, rows);
-  });
-},
+    db.query(sql, [excludeFilmId, countryName, excludeFilmId], (err, rows) => {
+      if (err) {
+        console.error("❌ Lỗi truy vấn phim đề xuất:", err);
+        return callback(err, null);
+      }
+      callback(null, rows);
+    });
+  },
 
 
 
@@ -593,15 +593,29 @@ getRecommendationsByCountry: (countryName, excludeFilmId, callback) => {
   },
 
   upsertInfo: async (conn, filmId, info) => {
-    const [rows] = await conn.query(`SELECT 1 FROM Film_info WHERE Film_id = ? LIMIT 1`, [filmId]);
+    // Nếu không có gì để update/insert thì bỏ qua
+    if (!info || Object.keys(info).length === 0) {
+      return;
+    }
+
+    const [rows] = await conn.query(
+      `SELECT 1 FROM Film_info WHERE Film_id = ? LIMIT 1`,
+      [filmId]
+    );
+
     if (rows.length) {
       const fields = Object.keys(info).map(k => `${k} = ?`).join(', ');
       const values = [...Object.values(info), filmId];
-      await conn.query(`UPDATE Film_info SET ${fields} WHERE Film_id = ?`, values);
+      await conn.query(
+        `UPDATE Film_info SET ${fields} WHERE Film_id = ?`,
+        values
+      );
     } else {
       await conn.query(`INSERT INTO Film_info SET ?`, { ...info, Film_id: filmId });
     }
   },
+
+
 
   replaceGenres: async (conn, filmId, ids) => {
     await conn.query(`DELETE FROM Film_genre WHERE Film_id = ?`, [filmId]);
