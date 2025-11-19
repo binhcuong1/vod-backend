@@ -97,36 +97,46 @@ exports.createfilm = (req, res) => {
 
 exports.updatefilm = async (req, res) => {
     const filmId = Number(req.params.id);
+    if (!filmId) {
+        return res.status(400).json({ success: false, message: 'Invalid film id' });
+    }
+
+    const body = req.body || {};
     const {
         film_name,
         is_series,
         info = {},
-        genre_ids = [],
-        cast = [],              // [{ actor_id, character_name? }]
-        posters = [],           // [{ poster_id?, postertype_id, poster_url, is_deleted? }]
-        sources = []            // movie-level only here: [{ resolution_id, source_url }]
-    } = req.body || {};
-
-    const usePool = typeof db.getConnection === 'function';
-    const getConn = () => new Promise((resolve, reject) => {
-        if (usePool) db.getConnection((e, c) => e ? reject(e) : resolve(c));
-        else resolve(db);
-    });
+        genre_ids,
+        cast,
+        posters,
+        sources
+    } = body;
 
     let conn;
-    try {
-        conn = await getConn();
-        await conn.beginTransaction();
+    const usePool = (typeof db.getConnection === 'function'); // true nếu dùng createPool
 
-        // 1) Cập nhật bảng film (basic)
-        const basic = {};
-        if (typeof film_name !== 'undefined') basic.film_name = film_name;
-        if (typeof is_series !== 'undefined') basic.is_series = !!is_series ? 1 : 0;
-        if (Object.keys(basic).length) {
-            await film.updateBasic(conn, filmId, basic);
+    try {
+        // 1️⃣ Lấy connection
+        if (usePool) {
+            // Pool → dùng promise().getConnection() và SAU NÀY NHỚ release
+            conn = await db.promise().getConnection();
+        } else {
+            // Single connection → dùng sql (PromiseConnection) và KHÔNG release
+            conn = sql;
         }
 
-        // 2) Upsert film_info
+        await conn.beginTransaction();
+
+        // 2️⃣ film basic
+        const basic = {};
+        if (typeof film_name !== 'undefined') basic.Film_name = film_name;
+        if (typeof is_series !== 'undefined') basic.is_series = !!is_series ? 1 : 0;
+
+        if (Object.keys(basic).length) {
+            await film.updateBasic(conn, filmId, basic);  // dùng conn.query(...) bên model
+        }
+
+        // 3️⃣ Film_info (map từ info → cột DB)
         const infoPatch = {};
         const map = {
             original_name: 'Original_name',
@@ -138,47 +148,80 @@ exports.updatefilm = async (req, res) => {
             process_episode: 'process_episode',
             total_episode: 'total_episode',
             trailer_url: 'trailer_url',
-            film_status: 'film_status'
+            film_status: 'film_status',
         };
-        for (const k in map) if (k in info) infoPatch[map[k]] = info[k] ?? null;
-        await film.upsertInfo(conn, filmId, infoPatch);
 
-        // 3) Replace genres
-        await film.replaceGenres(conn, filmId, Array.isArray(genre_ids) ? genre_ids : []);
-
-        // 4) Replace actors
-        const actors = Array.isArray(cast) ? cast : [];
-        await film.replaceActors(conn, filmId, actors);
-
-        // 5) Sync posters (insert/update/soft-delete)
-        await film.syncPosters(conn, filmId, Array.isArray(posters) ? posters : []);
-
-        // 6) Movie-level sources (không đụng Episode_id)
-        if (Array.isArray(sources)) {
-            // Xóa các filmSource movie-level cũ rồi insert lại (đơn giản, dễ kiểm soát)
-            await conn.query(`DELETE FROM filmSource WHERE film_id = ? AND Episode_id IS NULL`, [filmId]);
-            if (sources.length) {
-                const values = sources
-                    .filter(s => s && s.source_url && s.resolution_id)
-                    .map(s => [filmId, null, s.resolution_id, s.source_url]);
-                if (values.length) {
-                    await conn.query(
-                        `INSERT INTO filmSource (film_id, Episode_id, Resolution_id, Source_url) VALUES ?`,
-                        [values]
-                    );
+        for (const k in map) {
+            if (Object.prototype.hasOwnProperty.call(info, k)) {
+                let v = info[k];
+                // ép kiểu số cho mấy field numeric
+                if (['release_year', 'duration', 'country_id', 'process_episode', 'total_episode'].includes(k)) {
+                    v = (v !== null && v !== undefined && v !== '') ? Number(v) : null;
                 }
+                infoPatch[map[k]] = v ?? null;
+            }
+        }
+
+        if (Object.keys(infoPatch).length > 0) {
+            await film.upsertInfo(conn, filmId, infoPatch);  // bên model đã check empty giúp mình rồi
+        }
+
+        // 4️⃣ Genres (chỉ replace nếu FE gửi key genre_ids)
+        if (Object.prototype.hasOwnProperty.call(body, 'genre_ids')) {
+            const list = Array.isArray(genre_ids)
+                ? genre_ids.map(Number).filter(n => !Number.isNaN(n))
+                : [];
+            await film.replaceGenres(conn, filmId, list);
+        }
+
+        // 5️⃣ Cast (chỉ replace nếu FE gửi key cast)
+        if (Object.prototype.hasOwnProperty.call(body, 'cast')) {
+            const actors = Array.isArray(cast)
+                ? cast
+                    .map(a => ({
+                        actor_id: Number(a.actor_id),
+                        character_name: a.character_name ?? null,
+                    }))
+                    .filter(a => !Number.isNaN(a.actor_id))
+                : [];
+            await film.replaceActors(conn, filmId, actors);
+        }
+
+        // 6️⃣ Posters (nếu FE gửi posters)
+        if (Object.prototype.hasOwnProperty.call(body, 'posters') && Array.isArray(posters)) {
+            await film.syncPosters(conn, filmId, posters);
+        }
+
+        // 7️⃣ Movie-level sources (Episode_id IS NULL)
+        if (Object.prototype.hasOwnProperty.call(body, 'sources') && Array.isArray(sources)) {
+            await conn.query(
+                `DELETE FROM FilmSource WHERE Film_id = ? AND Episode_id IS NULL`,
+                [filmId]
+            );
+
+            const values = sources
+                .filter(s => s && s.source_url && s.resolution_id)
+                .map(s => [filmId, null, Number(s.resolution_id), s.source_url]);
+
+            if (values.length) {
+                await conn.query(
+                    `INSERT INTO FilmSource (Film_id, Episode_id, Resolution_id, Source_url) VALUES ?`,
+                    [values]
+                );
             }
         }
 
         await conn.commit();
-        if (conn.release) conn.release();
-        res.json({ success: true, message: 'film updated', id: filmId });
+        if (usePool && conn.release) conn.release();   // ❗ chỉ release khi là PoolConnection
+
+        return res.json({ success: true, message: 'film updated', id: filmId });
     } catch (err) {
+        console.error('updatefilm error:', err);
         if (conn) {
-            try { await conn.rollback(); } catch { }
-            if (conn.release) conn.release();
+            try { await conn.rollback(); } catch (_) { }
+            if (usePool && conn.release) conn.release(); // ❗ không release nếu không phải pool
         }
-        res.status(500).json({ success: false, message: err.message });
+        return res.status(500).json({ success: false, message: err.message || 'Server error' });
     }
 };
 

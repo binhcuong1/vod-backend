@@ -69,29 +69,6 @@ exports.updateEpisode = (req, res) => {
   });
 };
 
-exports.updateEpisodeSources = async (req, res) => {
-  const episodeId = Number(req.params.id);
-  const { sources = [] } = req.body || {}; // [{ resolution_id, source_url }]
-
-  try {
-    await db.query(`DELETE FROM FilmSource WHERE Episode_id = ?`, [episodeId]);
-    if (Array.isArray(sources) && sources.length) {
-      const values = sources
-        .filter(s => s && s.resolution_id && s.source_url)
-        .map(s => [null, episodeId, s.resolution_id, s.source_url]);
-      if (values.length) {
-        await db.query(
-          `INSERT INTO FilmSource (Film_id, Episode_id, Resolution_id, Source_url) VALUES ?`,
-          [values]
-        );
-      }
-    }
-    res.json({ success: true });
-  } catch (e) {
-    res.status(500).json({ success: false, message: e.message });
-  }
-};
-
 exports.deleteEpisode = (req, res) => {
   const id = req.params.id;
   episode.delete(id, (err, result) => {
@@ -105,27 +82,57 @@ exports.deleteEpisode = (req, res) => {
 exports.getEpisodeSources = async (req, res) => {
   try {
     const episodeId = Number(req.params.id);
+    if (!episodeId) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid episode id" });
+    }
 
-    // tìm Film_id của episode
-    const [[found]] = await db.query(`
+    // dùng promise().query thay vì query
+    const [filmRows] = await db.promise().query(
+      `
       SELECT s.Film_id
-      FROM Episode e JOIN Season s ON s.Season_id = e.Season_id
+      FROM Episode e 
+      JOIN Season s ON s.Season_id = e.Season_id
       WHERE e.Episode_id = ? AND e.is_deleted = 0
       LIMIT 1
-    `, [episodeId]);
-    if (!found) return res.status(404).json({ success: false, message: 'Episode not found' });
+    `,
+      [episodeId]
+    );
 
-    const [rows] = await db.query(`
-      SELECT fs.Resolution_id, r.Resolution_type, fs.Source_url
+    if (!filmRows || filmRows.length === 0) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Episode not found" });
+    }
+
+    const filmId = filmRows[0].Film_id;
+
+    const [rows] = await db.promise().query(
+      `
+      SELECT 
+        fs.Resolution_id, 
+        r.Resolution_type, 
+        fs.Source_url
       FROM FilmSource fs
       JOIN Resolution r ON r.Resolution_id = fs.Resolution_id
       WHERE fs.Film_id = ? AND fs.Episode_id = ?
       ORDER BY fs.Resolution_id
-    `, [found.Film_id, episodeId]);
+    `,
+      [filmId, episodeId]
+    );
 
-    res.json({ success: true, film_id: found.Film_id, episode_id: episodeId, data: rows });
+    return res.json({
+      success: true,
+      film_id: filmId,
+      episode_id: episodeId,
+      data: rows,
+    });
   } catch (e) {
-    res.status(500).json({ success: false, message: e.message });
+    console.error("getEpisodeSources error:", e);
+    return res
+      .status(500)
+      .json({ success: false, message: e.message || "Server error" });
   }
 };
 
@@ -134,31 +141,70 @@ exports.updateEpisodeSources = async (req, res) => {
     const episodeId = Number(req.params.id);
     const { sources = [] } = req.body || {};
 
-    // lấy Film_id của episode
-    const [[found]] = await db.query(`
-      SELECT s.Film_id
-      FROM Episode e JOIN Season s ON s.Season_id = e.Season_id
-      WHERE e.Episode_id = ? AND e.is_deleted = 0
-      LIMIT 1
-    `, [episodeId]);
-    if (!found) return res.status(404).json({ success: false, message: 'Episode not found' });
-
-    // replace toàn bộ sources của tập
-    await db.query(`DELETE FROM FilmSource WHERE Film_id=? AND Episode_id=?`, [found.Film_id, episodeId]);
-
-    const values = (Array.isArray(sources) ? sources : [])
-      .filter(s => s && s.resolution_id && s.source_url)
-      .map(s => [found.Film_id, episodeId, Number(s.resolution_id), s.source_url]);
-
-    if (values.length) {
-      await db.query(
-        `INSERT INTO FilmSource (Film_id, Episode_id, Resolution_id, Source_url) VALUES ?`,
-        [values]
-      );
+    if (!episodeId) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid episode id" });
     }
 
-    res.json({ success: true, film_id: found.Film_id, episode_id: episodeId, count: values.length });
+    // lấy Film_id của episode (dùng promise().query)
+    const [rows] = await db.promise().query(
+      `
+      SELECT s.Film_id
+      FROM Episode e 
+      JOIN Season s ON s.Season_id = e.Season_id
+      WHERE e.Episode_id = ? AND e.is_deleted = 0
+      LIMIT 1
+    `,
+      [episodeId]
+    );
+
+    if (!rows || rows.length === 0) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Episode not found" });
+    }
+
+    const filmId = rows[0].Film_id;
+
+    // Xoá toàn bộ sources của tập này
+    await db
+      .promise()
+      .query(
+        `DELETE FROM FilmSource WHERE Film_id = ? AND Episode_id = ?`,
+        [filmId, episodeId]
+      );
+
+    // Chuẩn bị values để insert lại
+    const values = (Array.isArray(sources) ? sources : [])
+      .filter((s) => s && s.resolution_id && s.source_url)
+      .map((s) => [
+        filmId,
+        episodeId,
+        Number(s.resolution_id),
+        s.source_url,
+      ]);
+
+    if (values.length) {
+      // INSERT nhiều dòng 1 lần
+      await db
+        .promise()
+        .query(
+          `INSERT INTO FilmSource (Film_id, Episode_id, Resolution_id, Source_url) VALUES ?`,
+          [values]
+        );
+    }
+
+    return res.json({
+      success: true,
+      film_id: filmId,
+      episode_id: episodeId,
+      count: values.length,
+    });
   } catch (e) {
-    res.status(500).json({ success: false, message: e.message });
+    console.error("updateEpisodeSources error:", e);
+    return res
+      .status(500)
+      .json({ success: false, message: e.message || "Server error" });
   }
 };
