@@ -16,3 +16,21 @@ CREATE TABLE Comment (
   FOREIGN KEY (Profile_id) REFERENCES Profile(Profile_id) ON DELETE CASCADE,
   FOREIGN KEY (Parent_id) REFERENCES Comment(Comment_id) ON DELETE CASCADE
 );
+
+//Bo sung
+ALTER TABLE Account
+ADD COLUMN is_premium BOOLEAN DEFAULT FALSE,
+ADD COLUMN premium_expired DATETIME NULL;
+
+ALTER TABLE Film
+ADD COLUMN is_premium_only BOOLEAN DEFAULT FALSE;
+
+CREATE TABLE PremiumPayment (
+  Payment_id INT PRIMARY KEY AUTO_INCREMENT,
+  Account_id INT,
+  Amount DECIMAL(10,2),
+  Method VARCHAR(50),
+  Paid_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  Expired_at DATETIME,
+  FOREIGN KEY (Account_id) REFERENCES Account(Account_id)
+);

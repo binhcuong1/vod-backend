@@ -4,7 +4,7 @@ const table_name = 'Film';
 const film = {
   getByID: (id, callback) => {
     db.query(
-      `SELECT * FROM ${table_name} WHERE Film_id = ? AND is_deleted = 0 LIMIT 1`,
+      `SELECT *, is_premium_only FROM ${table_name} WHERE Film_id = ? AND is_deleted = 0 LIMIT 1`,
       [id],
       (err, result) => {
         if (err) return callback(err, null);
@@ -19,6 +19,7 @@ const film = {
     const qFilm = `
     SELECT 
       f.Film_id, f.Film_name, f.is_series, f.is_deleted,
+      f.is_premium_only,
       fi.Original_name, fi.Description, fi.Release_year, fi.Duration,
       fi.maturity_rating, fi.Country_id, c.Country_name,
       fi.process_episode, fi.total_episode, fi.trailer_url, fi.film_status
@@ -165,7 +166,8 @@ const film = {
                       film: {
                         id: filmRow.Film_id,
                         name: filmRow.Film_name,
-                        is_series: !!filmRow.is_series
+                        is_series: !!filmRow.is_series,
+                        is_premium_only: !!filmRow.is_premium_only
                       },
                       info: {
                         original_name: filmRow.Original_name,
@@ -216,7 +218,7 @@ const film = {
   getAll: (callback) => {
     db.query(
       `
-            SELECT * 
+            SELECT *, f.is_premium_only 
             FROM ${table_name} f
             JOIN film_info fInfo on f.Film_id = fInfo.Film_id
             WHERE f.is_deleted = 0 
@@ -235,6 +237,7 @@ const film = {
       f.Film_id,
       f.Film_name,
       f.is_series,
+      f.is_premium_only,
       fi.Original_name,
       fi.Release_year,
       fi.Country_id,
@@ -267,6 +270,7 @@ const film = {
       SELECT 
         f.Film_id,
         f.Film_name,
+        f.is_premium_only,
         fi.Original_name,
         fi.Release_year,
         c.Country_name,
@@ -315,6 +319,7 @@ const film = {
       f.Film_id,
       f.Film_name,
       f.is_series,
+      f.is_premium_only,
       fi.Original_name,
       fi.Description,
       fi.Release_year,
@@ -392,6 +397,7 @@ const film = {
       f.Film_id,
       f.Film_name,
       f.is_series,
+      f.is_premium_only,
       fi.Release_year,
       fi.film_status,
       c.Country_name,
@@ -452,12 +458,10 @@ const film = {
 
 
 
-
-
   create: (data, callback) => {
     db.query(
-      `INSERT INTO ${table_name} (Film_name, is_series) VALUES (?, ?)`,
-      [data.film_name, !!data.is_series],
+      `INSERT INTO ${table_name} (Film_name, is_series, is_premium_only) VALUES (?, ?, ?)`,
+      [data.film_name, !!data.is_series, !!data.is_premium_only],
       (err, result) => {
         if (err) return callback(err, null);
         callback(null, result);
@@ -473,7 +477,7 @@ const film = {
 
     const run = (conn) => {
       const {
-        film_name, is_series = false,
+        film_name, is_series = false, is_premium_only = false,
         info = {},
         genre_ids = [],
         posters = [],
@@ -483,8 +487,8 @@ const film = {
 
       // 1) film
       conn.query(
-        `INSERT INTO film (Film_name, is_series) VALUES (?, ?)`,
-        [film_name, !!is_series],
+        `INSERT INTO film (Film_name, is_series, is_premium_only) VALUES (?, ?, ?)`,
+        [film_name, !!is_series, !!is_premium_only],
         (e1, r1) => {
           if (e1) return rollback(conn, () => cb(e1));
           const filmId = r1.insertId;
@@ -507,7 +511,7 @@ const film = {
               fi.process_episode ?? 0,
               fi.total_episode ?? 0,
               fi.trailer_url ?? null,
-              fi.film_status ?? null, // nên validate enum ở controller nếu cần
+              fi.film_status ?? null,
             ],
             (e2) => {
               if (e2) return rollback(conn, () => cb(e2));
@@ -538,8 +542,8 @@ const film = {
                         sources,
                         (s) => {
                           if (!s || !s.source_url || !s.resolution_id) return null;
-                          const episodeId = s.episode_id ?? null; // nếu movie: null
-                          const filmIdOrNull = episodeId ? null : filmId; // nếu có episode_id, bỏ Film_id
+                          const episodeId = s.episode_id ?? null;
+                          const filmIdOrNull = episodeId ? null : filmId;
                           return [filmIdOrNull, episodeId, s.resolution_id, s.source_url];
                         },
                         () => {

@@ -210,27 +210,31 @@ exports.googleLogin = (req, res) => {
 
 //  Lấy thông tin người dùng 
 exports.me = (req, res) => {
-  const user = req.user; 
+  const user = req.user;
 
   db.query(
     `SELECT 
         a.Account_id AS id,
         a.Email AS email,
         a.role AS role,
+        a.is_premium AS is_premium,
+        a.premium_expired AS premium_expired,
         p.Profile_id AS profile_id,
         p.Profile_name AS name,
         p.Avatar_url AS avatar
      FROM Account a
      LEFT JOIN Profile p ON a.Account_id = p.Account_id
-     WHERE a.Account_id = ?`,
+     WHERE a.Account_id = ?
+     LIMIT 1`,
     [user.id],
     (err, result) => {
       if (err) return res.status(500).json({ error: err });
       if (result.length === 0)
-        return res.status(404).json({ error: 'Không tìm thấy người dùng' });
+        return res.status(404).json({ error: "Không tìm thấy người dùng" });
 
       res.json({ success: true, user: result[0] });
     }
   );
 };
+
 
