@@ -108,9 +108,11 @@ exports.updatefilm = async (req, res) => {
         info = {},
         genre_ids,
         cast,
+        cast_ids,
         posters,
         sources
     } = body;
+
 
     let conn;
     const usePool = (typeof db.getConnection === 'function'); // true nếu dùng createPool
@@ -174,18 +176,34 @@ exports.updatefilm = async (req, res) => {
             await film.replaceGenres(conn, filmId, list);
         }
 
-        // 5️⃣ Cast (chỉ replace nếu FE gửi key cast)
-        if (Object.prototype.hasOwnProperty.call(body, 'cast')) {
-            const actors = Array.isArray(cast)
-                ? cast
+        // 5️⃣ Cast: hỗ trợ cả "cast" (đầy đủ thông tin) và "cast_ids" (chỉ id)
+        if (
+            Object.prototype.hasOwnProperty.call(body, 'cast') ||
+            Object.prototype.hasOwnProperty.call(body, 'cast_ids')
+        ) {
+            let actors = [];
+
+            if (Array.isArray(cast) && cast.length) {
+                // Trường hợp payload gửi dạng [{ actor_id, character_name }]
+                actors = cast
                     .map(a => ({
                         actor_id: Number(a.actor_id),
                         character_name: a.character_name ?? null,
                     }))
-                    .filter(a => !Number.isNaN(a.actor_id))
-                : [];
+                    .filter(a => !Number.isNaN(a.actor_id));
+            } else if (Array.isArray(cast_ids) && cast_ids.length) {
+                // Trường hợp payload hiện tại: cast_ids: [4,3,2]
+                actors = cast_ids
+                    .map(id => ({
+                        actor_id: Number(id),
+                        character_name: null,   // chưa có UI nhập, để null
+                    }))
+                    .filter(a => !Number.isNaN(a.actor_id));
+            }
+
             await film.replaceActors(conn, filmId, actors);
         }
+
 
         // 6️⃣ Posters (nếu FE gửi posters)
         if (Object.prototype.hasOwnProperty.call(body, 'posters') && Array.isArray(posters)) {
