@@ -1,6 +1,12 @@
 const comment = require('../models/commentModel');
 
-//  Lấy danh sách bình luận của một phim
+// ⭐ Added: Import censor function
+const censorText = require("../utils/filterText");
+
+
+
+
+//  Lấy danh sách bình luận của một phim  (BẠN VIẾT 2 LẦN, GIỮ LẠI 1 LẦN)
 exports.getCommentsByFilm = (req, res) => {
   const { filmId } = req.params;
   comment.getByFilm(filmId, (err, result) => {
@@ -22,7 +28,8 @@ exports.getCommentsByFilm = (req, res) => {
   });
 };
 
-// Thêm mới bình luận (hoặc phản hồi)
+
+// ⭐⭐⭐ THÊM MỚI: API xử lý bình luận + LỌC TỪ BẬY ⭐⭐⭐
 exports.addComment = (req, res) => {
   const { film_id, profile_id, content, parent_id } = req.body;
 
@@ -30,13 +37,20 @@ exports.addComment = (req, res) => {
     return res.status(400).json({ success: false, error: 'Thiếu dữ liệu bắt buộc' });
   }
 
-  comment.add({ film_id, profile_id, parent_id, content }, (err, result) => {
-    if (err) return res.status(500).json({ success: false, error: err });
-    res.status(201).json({ success: true, message: 'Đã thêm bình luận thành công' });
-  });
+  // ⭐ NEW: Lọc từ bậy / từ nhạy cảm
+  const filteredContent = censorText(content);
+
+  comment.add(
+    { film_id, profile_id, parent_id, content: filteredContent },
+    (err, result) => {
+      if (err) return res.status(500).json({ success: false, error: err });
+      res.status(201).json({ success: true, message: 'Đã thêm bình luận thành công' });
+    }
+  );
 };
 
-// Like bình luận
+
+// ⭐ Thả tim bình luận
 exports.likeComment = (req, res) => {
   const { commentId } = req.params;
 
@@ -46,7 +60,8 @@ exports.likeComment = (req, res) => {
   });
 };
 
-//  Xóa bình luận
+
+// ⭐ Xóa bình luận
 exports.deleteComment = (req, res) => {
   const { commentId } = req.params;
 
@@ -59,6 +74,7 @@ exports.deleteComment = (req, res) => {
   });
 };
 
+
 //  Lấy phản hồi của một bình luận
 exports.getReplies = (req, res) => {
   const { parentId } = req.params;
@@ -67,4 +83,34 @@ exports.getReplies = (req, res) => {
     if (err) return res.status(500).json({ success: false, error: err });
     res.json({ success: true, data: result });
   });
+};
+
+
+// ⭐⭐⭐ NEW: API THÊM PHẢN HỒI (Reply) — CÓ LỌC TỪ ⭐⭐⭐
+exports.addReply = (req, res) => {
+  const { film_id, profile_id, parent_id, content } = req.body;
+
+  if (!film_id || !profile_id || !parent_id || !content) {
+    return res.status(400).json({ success: false, error: "Thiếu dữ liệu" });
+  }
+
+  // ⭐ NEW: Lọc từ bậy / từ tục
+  const filteredContent = censorText(content);
+
+  comment.add(
+    {
+      film_id,
+      profile_id,
+      parent_id,
+      content: filteredContent, // ⭐ ĐÃ LỌC TỪ
+    },
+    (err, result) => {
+      if (err) return res.status(500).json({ success: false, error: err });
+
+      res.json({
+        success: true,
+        message: "Đã thêm phản hồi thành công",
+      });
+    }
+  );
 };

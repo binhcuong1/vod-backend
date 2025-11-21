@@ -258,7 +258,7 @@ const film = {
 
     db.query(query, (err, result) => {
       if (err) return callback(err);
-      console.log(`🎬 [FILM SEARCH DATA]: ${result.length} phim`);
+      
       callback(null, result);
     });
   },
@@ -445,7 +445,6 @@ getRecommendationsByCountry: (countryName, excludeFilmId, callback) => {
 
   db.query(sql, [excludeFilmId, countryName, excludeFilmId], (err, rows) => {
     if (err) {
-      console.error("❌ Lỗi truy vấn phim đề xuất:", err);
       return callback(err, null);
     }
     callback(null, rows);

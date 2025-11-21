@@ -76,6 +76,32 @@ const actor = {
       }
     );
   },
+
+  // ⭐⭐⭐ THÊM ĐÚNG CHỖ NÀY: HÀM NẰM TRONG OBJECT
+  getFilmsByActor: (actorId, callback) => {
+    const sql = `
+      SELECT
+        f.Film_id,
+        f.Film_name,
+        fi.Release_year,
+        fi.Description,
+        (
+          SELECT p.Poster_url
+          FROM Poster p
+          WHERE p.Film_id = f.Film_id
+            AND p.Postertype_id = 1
+            AND p.is_deleted = 0
+          LIMIT 1
+        ) AS poster_main
+      FROM Film_actor fa
+      JOIN Film f ON fa.Film_id = f.Film_id
+      JOIN Film_info fi ON fi.Film_id = f.Film_id
+      WHERE fa.Actor_id = ?
+        AND f.is_deleted = 0
+    `;
+
+    db.query(sql, [actorId], callback);
+  },
 };
 
 module.exports = actor;
