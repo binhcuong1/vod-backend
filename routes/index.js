@@ -23,4 +23,5 @@ router.use('/ratings',require('./ratingRoutes'));
 router.use('/history',require('./historyRoutes'));
 router.use('/filmactors',require('./filmActorRoutes'));
 router.use('/comments',require('./commentRoutes'));
+router.use('/payments',require('./paymentPremiumRoutes'));
 module.exports = router;
