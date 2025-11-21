@@ -73,3 +73,16 @@ exports.searchActors = (req, res) => {
     res.json({ success: true, data: result });
   });
 };
+
+exports.getFilmsByActor = (req, res) => {
+  const actorId = req.params.actorId;
+
+  actor.getFilmsByActor(actorId, (err, result) => {
+    if (err) return res.status(500).json({ success: false, error: err });
+
+    res.json({
+      success: true,
+      data: result
+    });
+  });
+};

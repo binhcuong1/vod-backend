@@ -259,7 +259,7 @@ const film = {
 
     db.query(query, (err, result) => {
       if (err) return callback(err);
-      console.log(`🎬 [FILM SEARCH DATA]: ${result.length} phim`);
+      
       callback(null, result);
     });
   },
@@ -447,6 +447,7 @@ const film = {
     LIMIT 10;
   `;
 
+
     db.query(sql, [excludeFilmId, countryName, excludeFilmId], (err, rows) => {
       if (err) {
         console.error("❌ Lỗi truy vấn phim đề xuất:", err);
@@ -455,6 +456,7 @@ const film = {
       callback(null, rows);
     });
   },
+
 
 
 
