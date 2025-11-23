@@ -259,7 +259,7 @@ const film = {
 
     db.query(query, (err, result) => {
       if (err) return callback(err);
-      
+
       callback(null, result);
     });
   },
@@ -479,7 +479,8 @@ const film = {
 
     const run = (conn) => {
       const {
-        film_name, is_series = false, is_premium_only = false,
+        film_name, is_series = false, 
+        is_premium_only = false,
         info = {},
         genre_ids = [],
         posters = [],

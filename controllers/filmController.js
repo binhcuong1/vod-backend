@@ -49,6 +49,7 @@ exports.createfilm = (req, res) => {
     const {
         film_name,
         is_series = false,
+        is_premium_only = false,
         film_info: fiFromFe, // FE hiện tại dùng "film_info"
         info: fiFromOld,     // phòng trường hợp sau này dùng "info"
         genre_ids = [],
@@ -67,6 +68,7 @@ exports.createfilm = (req, res) => {
     const payload = {
         film_name: String(film_name).trim(),
         is_series: !!is_series,
+        is_premium_only: !!is_premium_only,
         info: {
             original_name: infoSrc.original_name ?? null,
             description: infoSrc.description ?? null,
@@ -105,6 +107,7 @@ exports.updatefilm = async (req, res) => {
     const {
         film_name,
         is_series,
+        is_premium_only,
         info = {},
         genre_ids,
         cast,
@@ -133,6 +136,7 @@ exports.updatefilm = async (req, res) => {
         const basic = {};
         if (typeof film_name !== 'undefined') basic.Film_name = film_name;
         if (typeof is_series !== 'undefined') basic.is_series = !!is_series ? 1 : 0;
+        if (typeof is_premium_only !== 'undefined') basic.is_premium_only = !!is_premium_only ? 1 : 0;
 
         if (Object.keys(basic).length) {
             await film.updateBasic(conn, filmId, basic);  // dùng conn.query(...) bên model
@@ -297,7 +301,7 @@ exports.getFilmDetail = (req, res) => {
 
     film.getDetailByID(id, (err, data) => {
         if (err) {
-            console.error("❌ Lỗi lấy chi tiết phim:", err);
+            console.error("Lỗi lấy chi tiết phim:", err);
             return res.status(500).json({ success: false, message: "Lỗi server" });
         }
         if (!data) {
