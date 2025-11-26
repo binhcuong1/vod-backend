@@ -273,6 +273,7 @@ const film = {
         f.is_premium_only,
         fi.Original_name,
         fi.Release_year,
+        fi.Country_id,
         c.Country_name,
         GROUP_CONCAT(DISTINCT g.Genre_name ORDER BY g.Genre_name SEPARATOR ', ') AS genres,
 
