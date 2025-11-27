@@ -1,3 +1,4 @@
+const bcrypt = require("bcrypt");
 const db = require('../config/db');
 const table_name = 'Profile';
 
@@ -14,7 +15,7 @@ const profile = {
     );
   },
 
- 
+
   getByID: (id, callback) => {
     db.query(
       `SELECT p.*, a.Email, a.role
@@ -32,24 +33,24 @@ const profile = {
   },
 
 
- getByAccount: (accountId, callback) => {
-  db.query(
-    `SELECT p.*, a.Email, a.role
+  getByAccount: (accountId, callback) => {
+    db.query(
+      `SELECT p.*, a.Email, a.role
      FROM ${table_name} p
      LEFT JOIN Account a ON p.Account_id = a.Account_id
      WHERE p.Account_id = ? AND p.is_deleted = 0
      ORDER BY p.Profile_id DESC
-     LIMIT 1`,   
-    [accountId],
-    (err, result) => {
-      if (err) return callback(err, null);
-      callback(null, result[0] || null);
-    }
-  );
-},
+     LIMIT 1`,
+      [accountId],
+      (err, result) => {
+        if (err) return callback(err, null);
+        callback(null, result[0] || null);
+      }
+    );
+  },
 
 
-  
+
   create: (data, callback) => {
     db.query(
       `INSERT INTO ${table_name} (Profile_name, Avatar_url, Account_id)
