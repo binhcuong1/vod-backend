@@ -41,7 +41,7 @@ const account = {
         callback(null, acc);
       }
     );
-  },
+  }, 
 
   getByEmail: (email, callback) => {
     db.query(

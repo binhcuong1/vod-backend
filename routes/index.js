@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 
+router.use('/dashboard', require('./dashboardRoutes'));
 router.use('/films', require('./filmRoutes'));
 router.use('/countries',require('./countryRoutes'));
 router.use('/genres',require('./genreRoutes'));
