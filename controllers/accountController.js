@@ -1,5 +1,5 @@
 const account = require('../models/accountModel');
-const profile = require('../models/profileModel'); 
+const profile = require('../models/profileModel');
 
 exports.getAccounts = (req, res) => {
   account.getAll((err, result) => {
@@ -17,37 +17,65 @@ exports.getAccountByID = (req, res) => {
 };
 
 exports.createAccount = (req, res) => {
-  const { email, password, role } = req.body;
-
-  if (!email || !password)
-    return res.status(400).json({ success: false, error: 'Thiếu email hoặc mật khẩu' });
-
+  const {
+    email,
+    password,
+    role,
+    is_premium,        
+    premium_expired,   
+  } = req.body;
+  
+  if (!email || !password) {
+    return res
+      .status(400)
+      .json({ success: false, error: "Thiếu email hoặc mật khẩu" });
+  }
+  
   account.getByEmail(email, (err, existing) => {
-    if (err) return res.status(500).json({ success: false, error: err });
-    if (existing)
-      return res.status(400).json({ success: false, error: 'Email đã tồn tại' });
-
-    account.create({ email, password, role }, (err, result) => {
+    if (err) 
+      return res.status(500).json({ success: false, error: err });
+    
+    if (existing) {
+      return res
+        .status(400)
+        .json({ success: false, error: "Email đã tồn tại" });
+    }
+    
+    // Chuẩn hóa dữ liệu cho create
+    const payload = {
+      email,
+      password,
+      role: role || "user",
+      is_premium: is_premium ? 1 : 0,
+      premium_expired: premium_expired || null,
+    };
+    
+    account.create(payload, (err, result) => {
       if (err) return res.status(500).json({ success: false, error: err });
 
       const accountId = result.insertId;
-      const profileName = email.split('@')[0];
+      const profileName = email.split("@")[0];
       const avatarUrl = "images/avatar.png";
 
       //  Sau khi tạo account -> tạo profile mặc định
       profile.create(
-        { profile_name: profileName, avatar_url: avatarUrl, account_id: accountId },
+        {
+          profile_name: profileName,
+          avatar_url: avatarUrl,
+          account_id: accountId,
+        },
         (pErr) => {
           if (pErr) {
             return res.status(500).json({
               success: false,
-              message: 'Tạo tài khoản thành công nhưng lỗi khi tạo profile',
+              message:
+                "Tạo tài khoản thành công nhưng lỗi khi tạo profile",
             });
           }
 
           res.status(201).json({
             success: true,
-            message: 'Tạo tài khoản và profile thành công',
+            message: "Tạo tài khoản và profile thành công",
             insertedId: accountId,
           });
         }

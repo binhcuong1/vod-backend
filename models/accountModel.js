@@ -74,29 +74,22 @@ const account = {
     try {
       const hashed = await bcrypt.hash(data.password, 10);
 
-      db.query(
-        `INSERT INTO ${table_name}
-         (Email, Password, role, is_premium, premium_expired)
-         VALUES (?, ?, ?, 0, NULL)`,
-        [data.email, hashed, data.role || "user"],
-        (err, result) => {
-          if (err) return callback(err, null);
+      const sql = `
+        INSERT INTO ${table_name}
+          (Email, Password, role, is_premium, premium_expired)
+        VALUES (?, ?, ?, ?, ?)
+      `;
 
-          const accountId = result.insertId;
+      const params = [
+        data.email,
+        hashed,
+        data.role || "user",
+        data.is_premium ? 1 : 0,
+        data.premium_expired || null,
+      ];
 
-          //  Tạo profile mặc định
-          profile.create(
-            {
-              profile_name: data.email.split("@")[0],
-              avatar_url: "images/avatar.png",
-              account_id: accountId,
-            },
-            (pErr) => {
-              if (pErr) console.error("❌ Lỗi tạo profile:", pErr);
-              callback(null, result);
-            }
-          );
-        }
+      db.query(sql, params, (err, result) =>
+        err ? callback(err, null) : callback(null, result)
       );
     } catch (err) {
       callback(err, null);
