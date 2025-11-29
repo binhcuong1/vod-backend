@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 
 router.use('/dashboard', require('./dashboardRoutes'));
+router.use("/reports", require("./reportRoutes"));
 router.use('/films', require('./filmRoutes'));
 router.use('/countries',require('./countryRoutes'));
 router.use('/genres',require('./genreRoutes'));
