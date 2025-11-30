@@ -49,16 +49,49 @@ const poster = {
   },
 
   create: (data, callback) => {
-    db.query(
-      `INSERT INTO ${table_name} (Postertype_id, Poster_url, Film_id)
-       VALUES (?, ?, ?)`,
-      [data.postertype_id, data.poster_url, data.film_id],
-      (err, result) => {
-        if (err) return callback(err, null);
-        callback(null, result);
+    const { postertype_id, poster_url, film_id } = data || {};
+
+    // Validate cơ bản
+    if (!postertype_id || !poster_url || !film_id) {
+      return callback(
+        {
+          code: "VALIDATION_ERROR",
+          message: "postertype_id, poster_url và film_id là bắt buộc."
+        },
+        null
+      );
+    }
+
+    const sql = `
+        INSERT INTO ${table_name} (Postertype_id, Poster_url, Film_id)
+        VALUES (?, ?, ?)
+    `;
+
+    const params = [
+      Number(postertype_id),
+      poster_url.trim(),
+      Number(film_id)
+    ];
+
+    db.query(sql, params, (err, result) => {
+      if (err) {
+        // Xử lý lỗi duplicate (trùng Film_id + Postertype_id)
+        if (err.code === "ER_DUP_ENTRY") {
+          return callback(
+            {
+              code: "DUPLICATE_POSTER",
+              message: "Poster cho loại này của phim đã tồn tại."
+            },
+            null
+          );
+        }
+        return callback(err, null);
       }
-    );
+
+      return callback(null, result);
+    });
   },
+
 
   update: (id, data, callback) => {
     const fields = Object.keys(data)
